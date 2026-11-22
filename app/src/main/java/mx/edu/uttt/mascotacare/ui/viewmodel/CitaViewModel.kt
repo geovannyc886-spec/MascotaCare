@@ -115,8 +115,9 @@ class CitaViewModel @Inject constructor(
         if (_uiState.value.errorMessage == null) onSuccess()
     }
 
-    fun actualizarCita(cita: Cita) = viewModelScope.launch {
+    fun actualizarCita(cita: Cita, onSuccess: () -> Unit = {}) = viewModelScope.launch {
         ejecutarOperacion { citaRepository.actualizar(cita.toDomain()) }
+        if (_uiState.value.errorMessage == null) onSuccess()
     }
 
     fun eliminarCita(cita: Cita, onSuccess: () -> Unit = {}) = viewModelScope.launch {

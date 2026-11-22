@@ -21,7 +21,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -182,7 +181,7 @@ private fun PetCard(pet: Mascota, onClick: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Image(
-                painter = painterResource(petImageFor(pet.nombre)),
+                painter = painterResource(R.drawable.ic_paw),
                 contentDescription = stringResource(R.string.pets_photo_desc, pet.nombre),
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
@@ -218,14 +217,6 @@ private fun PetCard(pet: Mascota, onClick: () -> Unit) {
             Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = colors.onSurfaceVariant)
         }
     }
-}
-
-private fun petImageFor(name: String): Int = when (name.lowercase()) {
-    "bruno" -> R.drawable.pet_bruno
-    "luna" -> R.drawable.pet_luna
-    "max" -> R.drawable.pet_max
-    "nala" -> R.drawable.pet_nala
-    else -> R.drawable.ic_paw
 }
 
 @Composable

@@ -28,10 +28,16 @@ fun ProfileScreen(
     userName: String,
     userEmail: String,
     onTabSelected: (Int) -> Unit = {},
-    onLogout: () -> Unit = {}
+    onLogout: () -> Unit = {},
+    authError: String? = null,
+    onChangePassword: (String, () -> Unit) -> Unit = { _, done -> done() },
+    onDeleteAccount: () -> Unit = {}
 ) {
     val colors = MaterialTheme.colorScheme
     var showLogoutDialog by rememberSaveable { mutableStateOf(false) }
+    var showPasswordDialog by rememberSaveable { mutableStateOf(false) }
+    var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
+    var newPassword by rememberSaveable { mutableStateOf("") }
 
     Scaffold(
         containerColor = colors.background,
@@ -111,6 +117,14 @@ fun ProfileScreen(
 
             Spacer(Modifier.height(dimensionResource(R.dimen.dp_32)))
 
+            if (authError != null) Text(authError, color = colors.error, style = MaterialTheme.typography.bodySmall)
+            OutlinedButton(onClick = { showPasswordDialog = true }, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.profile_change_password))
+            }
+            TextButton(onClick = { showDeleteDialog = true }, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.profile_delete_account), color = colors.error)
+            }
+
             Button(
                 onClick = { showLogoutDialog = true },
                 colors = ButtonDefaults.buttonColors(
@@ -148,6 +162,29 @@ fun ProfileScreen(
                     Text(stringResource(R.string.common_cancel))
                 }
             }
+        )
+    }
+    if (showPasswordDialog) {
+        AlertDialog(
+            onDismissRequest = { showPasswordDialog = false },
+            title = { Text(stringResource(R.string.profile_change_password)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.dp_8))) {
+                    OutlinedTextField(value = newPassword, onValueChange = { newPassword = it }, label = { Text(stringResource(R.string.login_password)) }, singleLine = true)
+                    if (authError != null) Text(authError, color = colors.error, style = MaterialTheme.typography.bodySmall)
+                }
+            },
+            confirmButton = { TextButton(onClick = { onChangePassword(newPassword) { showPasswordDialog = false; newPassword = "" } }) { Text(stringResource(R.string.common_accept)) } },
+            dismissButton = { TextButton(onClick = { showPasswordDialog = false }) { Text(stringResource(R.string.common_cancel)) } }
+        )
+    }
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text(stringResource(R.string.profile_delete_confirm_title)) },
+            text = { Text(stringResource(R.string.profile_delete_confirm_message)) },
+            confirmButton = { TextButton(onClick = { showDeleteDialog = false; onDeleteAccount() }) { Text(stringResource(R.string.common_delete), color = colors.error) } },
+            dismissButton = { TextButton(onClick = { showDeleteDialog = false }) { Text(stringResource(R.string.common_cancel)) } }
         )
     }
 }

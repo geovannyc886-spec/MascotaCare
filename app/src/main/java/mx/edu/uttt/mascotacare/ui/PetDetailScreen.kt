@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -46,7 +47,8 @@ import mx.edu.uttt.mascotacare.data.database.entity.Mascota
 fun PetDetailScreen(
     mascota: Mascota,
     onBack: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onEdit: () -> Unit = {},
 ) {
     var showDeleteConfirmation by rememberSaveable { mutableStateOf(false) }
     val colors = MaterialTheme.colorScheme
@@ -74,7 +76,7 @@ fun PetDetailScreen(
             verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.spacing_medium))
         ) {
             Image(
-                painter = painterResource(detailPetImage(mascota.nombre)),
+                painter = painterResource(R.drawable.ic_paw),
                 contentDescription = stringResource(R.string.pets_photo_desc, mascota.nombre),
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
@@ -97,6 +99,10 @@ fun PetDetailScreen(
                 }
             }
             Spacer(Modifier.height(dimensionResource(R.dimen.spacing_small)))
+            Button(onClick = onEdit, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Filled.Edit, contentDescription = null)
+                Text(stringResource(R.string.pet_detail_edit), modifier = Modifier.padding(start = dimensionResource(R.dimen.spacing_small)))
+            }
             Button(
                 onClick = { showDeleteConfirmation = true },
                 modifier = Modifier.fillMaxWidth()
@@ -124,12 +130,4 @@ fun PetDetailScreen(
             }
         )
     }
-}
-
-private fun detailPetImage(name: String): Int = when (name.lowercase()) {
-    "bruno" -> R.drawable.pet_bruno
-    "luna" -> R.drawable.pet_luna
-    "max" -> R.drawable.pet_max
-    "nala" -> R.drawable.pet_nala
-    else -> R.drawable.ic_paw
 }

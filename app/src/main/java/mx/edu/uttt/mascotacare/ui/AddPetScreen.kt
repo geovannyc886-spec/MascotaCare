@@ -24,6 +24,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import mx.edu.uttt.mascotacare.R
+import mx.edu.uttt.mascotacare.data.database.entity.Mascota
 import mx.edu.uttt.mascotacare.ui.theme.MascotaCareTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -31,17 +32,21 @@ import mx.edu.uttt.mascotacare.ui.theme.MascotaCareTheme
 fun AddPetScreen(
     onBack: () -> Unit = {},
     onSave: (nombre: String, especie: String, raza: String, fechaNacimiento: Long?, pesoKg: Double?) -> Unit = { _, _, _, _, _ -> },
-    onTabSelected: (Int) -> Unit = {}
+    onTabSelected: (Int) -> Unit = {},
+    mascota: Mascota? = null,
+    errorMessage: String? = null,
+    isLoading: Boolean = false,
 ) {
     val colors = MaterialTheme.colorScheme
 
-    var name by rememberSaveable { mutableStateOf("") }
-    var species by rememberSaveable { mutableStateOf("") }
-    var breed by rememberSaveable { mutableStateOf("") }
-    var weight by rememberSaveable { mutableStateOf("") }
-    var birthMillis by rememberSaveable { mutableStateOf<Long?>(null) }
+    var name by rememberSaveable(mascota?.id) { mutableStateOf(mascota?.nombre.orEmpty()) }
+    var species by rememberSaveable(mascota?.id) { mutableStateOf(mascota?.especie.orEmpty()) }
+    var breed by rememberSaveable(mascota?.id) { mutableStateOf(mascota?.raza.orEmpty()) }
+    var weight by rememberSaveable(mascota?.id) { mutableStateOf(mascota?.pesoKg?.toString().orEmpty()) }
+    var birthMillis by rememberSaveable(mascota?.id) { mutableStateOf(mascota?.fechaNacimiento) }
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
     var nameError by rememberSaveable { mutableStateOf(false) }
+    var nameTooLong by rememberSaveable { mutableStateOf(false) }
     var speciesError by rememberSaveable { mutableStateOf(false) }
 
     val speciesOptions = listOf(
@@ -56,7 +61,7 @@ fun AddPetScreen(
         containerColor = colors.background,
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.add_pet_title)) },
+                title = { Text(stringResource(if (mascota == null) R.string.add_pet_title else R.string.edit_pet_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
@@ -111,11 +116,24 @@ fun AddPetScreen(
 
             OutlinedTextField(
                 value = name,
-                onValueChange = { name = it; nameError = false },
+                onValueChange = {
+                    if (it.length <= 20) {
+                        name = it
+                        nameTooLong = false
+                    } else {
+                        nameTooLong = true
+                    }
+                    nameError = false
+                },
                 label = { Text(stringResource(R.string.add_pet_name)) },
                 singleLine = true,
-                isError = nameError,
-                supportingText = { if (nameError) Text(stringResource(R.string.add_pet_name_error)) },
+                isError = nameError || nameTooLong,
+                supportingText = {
+                    when {
+                        nameTooLong -> Text(stringResource(R.string.add_pet_name_max_error))
+                        nameError -> Text(stringResource(R.string.add_pet_name_error))
+                    }
+                },
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -132,6 +150,14 @@ fun AddPetScreen(
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.align(Alignment.Start)
                 )
+            }
+            errorMessage?.let { message ->
+                val text = when (message) {
+                    "add_pet_name_required" -> stringResource(R.string.add_pet_name_error)
+                    "add_pet_name_max_error" -> stringResource(R.string.add_pet_name_max_error)
+                    else -> message
+                }
+                Text(text, color = colors.error, style = MaterialTheme.typography.bodySmall)
             }
 
             OutlinedTextField(
@@ -168,6 +194,8 @@ fun AddPetScreen(
                     onClick = {
                         if (name.isBlank()) {
                             nameError = true
+                        } else if (nameTooLong) {
+                            nameError = false
                         } else if (species.isBlank()) {
                             speciesError = true
                         } else {
@@ -177,9 +205,17 @@ fun AddPetScreen(
                     },
                     modifier = Modifier
                         .weight(1f)
-                        .height(dimensionResource(R.dimen.button_height))
+                        .height(dimensionResource(R.dimen.button_height)),
+                    enabled = !isLoading
                 ) {
-                    Text(stringResource(R.string.add_pet_save))
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(dimensionResource(R.dimen.dp_20)),
+                            strokeWidth = dimensionResource(R.dimen.dp_2)
+                        )
+                    } else {
+                        Text(stringResource(if (mascota == null) R.string.add_pet_save else R.string.edit_pet_save))
+                    }
                 }
             }
         }

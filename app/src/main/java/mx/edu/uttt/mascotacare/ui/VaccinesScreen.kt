@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import mx.edu.uttt.mascotacare.R
 import mx.edu.uttt.mascotacare.data.database.entity.Cita
 import mx.edu.uttt.mascotacare.data.database.entity.Mascota
+import mx.edu.uttt.mascotacare.domain.model.Vacuna
 import mx.edu.uttt.mascotacare.ui.theme.MascotaCareTheme
 import java.util.Calendar
 
@@ -38,11 +39,16 @@ import java.util.Calendar
 @Composable
 fun VaccinesScreen(
     mascotas: List<Mascota> = emptyList(),
+    vacunas: List<Vacuna> = emptyList(),
     citas: List<Cita> = emptyList(),
     selectedMascotaId: Int? = null,
     onMascotaSelect: (Int?) -> Unit = {},
     onTabSelected: (Int) -> Unit = {},
-    onAddClick: () -> Unit = {}
+    onAddClick: () -> Unit = {},
+    onSaveVacuna: (Vacuna) -> Unit = {},
+    onUpdateVacuna: (Vacuna) -> Unit = {},
+    onDeleteVacuna: (Vacuna) -> Unit = {},
+    onCitaClick: (Cita) -> Unit = {}
 ) {
     val colors = MaterialTheme.colorScheme
 
@@ -53,6 +59,8 @@ fun VaccinesScreen(
     var selMonth by rememberSaveable { mutableIntStateOf(Calendar.getInstance().get(Calendar.MONTH)) }
     var selDay by rememberSaveable { mutableIntStateOf(Calendar.getInstance().get(Calendar.DAY_OF_MONTH)) }
     var dayFilterActive by rememberSaveable { mutableStateOf(false) }
+    var editingVacuna by remember { mutableStateOf<Vacuna?>(null) }
+    var showVacunaDialog by rememberSaveable { mutableStateOf(false) }
 
     // Auto-select first pet if none selected
     LaunchedEffect(mascotas) {
@@ -64,16 +72,14 @@ fun VaccinesScreen(
     val selectedPet = mascotas.find { it.id == selectedMascotaId } ?: mascotas.firstOrNull()
 
     // Filter citas by selected day if day filter active
-    val filteredCitas = if (dayFilterActive) {
-        citas.filter { cita ->
-            val cal = Calendar.getInstance().apply { timeInMillis = cita.fecha }
+    val filteredVacunas = if (dayFilterActive) {
+        vacunas.filter { vacuna ->
+            val cal = Calendar.getInstance().apply { timeInMillis = vacuna.fecha }
             cal.get(Calendar.YEAR) == selYear &&
                 cal.get(Calendar.MONTH) == selMonth &&
                 cal.get(Calendar.DAY_OF_MONTH) == selDay
         }
-    } else {
-        citas
-    }
+    } else vacunas
 
     Scaffold(
         containerColor = colors.background,
@@ -94,11 +100,11 @@ fun VaccinesScreen(
         bottomBar = { MascotaNavigationBar(selectedIndex = 2, onTabSelected = onTabSelected) },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = onAddClick,
+                onClick = { editingVacuna = null; showVacunaDialog = true },
                 containerColor = colors.primaryContainer,
                 contentColor = colors.onPrimaryContainer
             ) {
-                Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.home_schedule_appointment))
+                Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.vaccine_add_title))
             }
         }
     ) { padding ->
@@ -150,7 +156,7 @@ fun VaccinesScreen(
                 selYear = selYear,
                 selMonth = selMonth,
                 selDay = selDay,
-                citas = citas,
+                vacunas = vacunas,
                 onPrev = {
                     dayFilterActive = false
                     if (month == 0) { month = 11; year-- } else month--
@@ -182,25 +188,54 @@ fun VaccinesScreen(
                     fontWeight = FontWeight.Medium
                 )
                 Text(
-                    stringResource(R.string.vaccines_records, filteredCitas.size),
+                    stringResource(R.string.vaccines_records, filteredVacunas.size),
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.onSurfaceVariant
                 )
             }
 
-            if (filteredCitas.isEmpty()) {
+            if (filteredVacunas.isEmpty()) {
                 Text(
-                    stringResource(R.string.vaccines_no_citas),
+                    stringResource(R.string.vaccines_no_records),
                     color = colors.onSurfaceVariant,
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(vertical = dimensionResource(R.dimen.dp_12))
                 )
             } else {
-                filteredCitas.forEach { cita -> CitaCard(cita) }
+                filteredVacunas.forEach { vacuna ->
+                    VaccineCard(
+                        vacuna = vacuna,
+                        onEdit = { editingVacuna = vacuna; showVacunaDialog = true },
+                        onToggleApplied = { onUpdateVacuna(vacuna.copy(aplicada = !vacuna.aplicada)) },
+                        onDelete = { onDeleteVacuna(vacuna) }
+                    )
+                }
+            }
+
+            if (citas.isNotEmpty()) {
+                Text(stringResource(R.string.vaccines_appointments), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                citas.filter { !dayFilterActive || Calendar.getInstance().run { timeInMillis = it.fecha; get(Calendar.YEAR) == selYear && get(Calendar.MONTH) == selMonth && get(Calendar.DAY_OF_MONTH) == selDay } }
+                    .forEach { cita ->
+                        Card(Modifier.fillMaxWidth().clickable { onCitaClick(cita) }, colors = CardDefaults.cardColors(containerColor = colors.surfaceVariant)) {
+                            ListItem(headlineContent = { Text(cita.motivo) }, supportingContent = { Text(formatDate(cita.fecha)) }, trailingContent = { Text(stringResource(R.string.common_edit)) }, colors = ListItemDefaults.colors(containerColor = colors.surfaceVariant))
+                        }
+                    }
             }
 
             Spacer(Modifier.height(dimensionResource(R.dimen.dp_72)))
         }
+    }
+
+    if (showVacunaDialog) {
+        VaccineDialog(
+            mascotaId = selectedPet?.id,
+            vacuna = editingVacuna,
+            onDismiss = { showVacunaDialog = false; editingVacuna = null },
+            onSave = { vacuna ->
+                if (editingVacuna == null) onSaveVacuna(vacuna) else onUpdateVacuna(vacuna)
+                showVacunaDialog = false; editingVacuna = null
+            }
+        )
     }
 }
 
@@ -211,7 +246,7 @@ private fun CalendarCard(
     selYear: Int,
     selMonth: Int,
     selDay: Int,
-    citas: List<Cita>,
+    vacunas: List<Vacuna>,
     onPrev: () -> Unit,
     onNext: () -> Unit,
     onSelectDay: (Int) -> Unit
@@ -226,8 +261,8 @@ private fun CalendarCard(
     val weeks = (offset + daysInMonth + 6) / 7
 
     // Days with citas in this month
-    val daysWithCitas = citas.mapNotNull { cita ->
-        val c = Calendar.getInstance().apply { timeInMillis = cita.fecha }
+    val daysWithCitas = vacunas.mapNotNull { vacuna ->
+        val c = Calendar.getInstance().apply { timeInMillis = vacuna.fecha }
         if (c.get(Calendar.YEAR) == year && c.get(Calendar.MONTH) == month) {
             c.get(Calendar.DAY_OF_MONTH)
         } else null
@@ -392,6 +427,61 @@ private fun StatusChip(isPast: Boolean) {
             }
         }
     }
+}
+
+@Composable
+private fun VaccineCard(vacuna: Vacuna, onEdit: () -> Unit, onToggleApplied: () -> Unit, onDelete: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    var confirmDelete by rememberSaveable(vacuna.id) { mutableStateOf(false) }
+    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = colors.surfaceVariant)) {
+        Column(Modifier.padding(dimensionResource(R.dimen.dp_16))) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(vacuna.nombre, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    Text("${formatDate(vacuna.fecha)} · ${vacuna.dosis}", color = colors.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                }
+                TextButton(onClick = onEdit) { Text(stringResource(R.string.common_edit)) }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(if (vacuna.aplicada) stringResource(R.string.vaccine_applied) else stringResource(R.string.vaccine_pending), Modifier.weight(1f), color = colors.primary)
+                TextButton(onClick = onToggleApplied) { Text(stringResource(if (vacuna.aplicada) R.string.vaccine_mark_pending else R.string.vaccine_mark_applied)) }
+                TextButton(onClick = { confirmDelete = true }) { Text(stringResource(R.string.common_delete), color = colors.error) }
+            }
+        }
+    }
+    if (confirmDelete) AlertDialog(
+        onDismissRequest = { confirmDelete = false },
+        title = { Text(stringResource(R.string.vaccine_delete_title)) },
+        text = { Text(stringResource(R.string.vaccine_delete_message, vacuna.nombre)) },
+        confirmButton = { TextButton(onClick = { confirmDelete = false; onDelete() }) { Text(stringResource(R.string.common_delete), color = colors.error) } },
+        dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.common_cancel)) } }
+    )
+}
+
+@Composable
+private fun VaccineDialog(mascotaId: Int?, vacuna: Vacuna?, onDismiss: () -> Unit, onSave: (Vacuna) -> Unit) {
+    var name by rememberSaveable(vacuna?.id) { mutableStateOf(vacuna?.nombre.orEmpty()) }
+    var dose by rememberSaveable(vacuna?.id) { mutableStateOf(vacuna?.dosis.orEmpty()) }
+    var date by rememberSaveable(vacuna?.id) { mutableStateOf(vacuna?.fecha ?: System.currentTimeMillis()) }
+    var applied by rememberSaveable(vacuna?.id) { mutableStateOf(vacuna?.aplicada ?: false) }
+    var showDate by rememberSaveable { mutableStateOf(false) }
+    var invalid by rememberSaveable { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(if (vacuna == null) R.string.vaccine_add_title else R.string.vaccine_edit_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.dp_8))) {
+                OutlinedTextField(name, { name = it; invalid = false }, label = { Text(stringResource(R.string.vaccine_name)) }, singleLine = true)
+                OutlinedTextField(dose, { dose = it; invalid = false }, label = { Text(stringResource(R.string.vaccine_dose)) }, singleLine = true)
+                ClickableField(stringResource(R.string.appt_date), formatDate(date), Icons.Filled.CalendarMonth, { showDate = true })
+                Row(verticalAlignment = Alignment.CenterVertically) { Text(stringResource(R.string.vaccine_applied), Modifier.weight(1f)); Checkbox(applied, { applied = it }) }
+                if (invalid) Text(stringResource(R.string.vaccine_fields_required), color = MaterialTheme.colorScheme.error)
+            }
+        },
+        confirmButton = { TextButton(onClick = { if (mascotaId == null || name.isBlank() || dose.isBlank()) invalid = true else onSave(Vacuna(vacuna?.id ?: 0, mascotaId, name.trim(), date, dose.trim(), applied)) }) { Text(stringResource(R.string.common_accept)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } }
+    )
+    if (showDate) AppDatePickerDialog(date, { showDate = false }, { it?.let { value -> date = value }; showDate = false })
 }
 
 @Preview(showBackground = true, showSystemUi = true)

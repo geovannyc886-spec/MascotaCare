@@ -24,6 +24,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import mx.edu.uttt.mascotacare.R
 import mx.edu.uttt.mascotacare.data.database.entity.Mascota
+import mx.edu.uttt.mascotacare.data.database.entity.Cita
 import mx.edu.uttt.mascotacare.ui.theme.MascotaCareTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -33,23 +34,27 @@ fun AppointmentScreen(
     onBack: () -> Unit = {},
     onDone: (mascotaId: Int, motivo: String, fecha: Long, hora: Int, minuto: Int, clinica: String, recordatorio: Boolean) -> Unit = { _, _, _, _, _, _, _ -> },
     onAddPetClick: () -> Unit = {},
-    onTabSelected: (Int) -> Unit = {}
+    onTabSelected: (Int) -> Unit = {},
+    cita: Cita? = null,
+    onUpdate: (Cita) -> Unit = {},
+    onDelete: (Cita) -> Unit = {}
 ) {
     val colors = MaterialTheme.colorScheme
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
-    var selectedPetId by rememberSaveable { mutableStateOf<Int?>(null) }
+    var selectedPetId by rememberSaveable(cita?.id) { mutableStateOf<Int?>(cita?.mascotaId) }
     var petMenuExpanded by rememberSaveable { mutableStateOf(false) }
-    var reason by rememberSaveable { mutableStateOf("") }
-    var clinic by rememberSaveable { mutableStateOf("") }
-    var dateMillis by rememberSaveable { mutableStateOf<Long?>(System.currentTimeMillis()) }
-    var hour by rememberSaveable { mutableIntStateOf(10) }
-    var minute by rememberSaveable { mutableIntStateOf(30) }
-    var reminder by rememberSaveable { mutableStateOf(true) }
+    var reason by rememberSaveable(cita?.id) { mutableStateOf(cita?.motivo.orEmpty()) }
+    var clinic by rememberSaveable(cita?.id) { mutableStateOf(cita?.clinica.orEmpty()) }
+    var dateMillis by rememberSaveable(cita?.id) { mutableStateOf<Long?>(cita?.fecha ?: System.currentTimeMillis()) }
+    var hour by rememberSaveable(cita?.id) { mutableIntStateOf(cita?.hora ?: 10) }
+    var minute by rememberSaveable(cita?.id) { mutableIntStateOf(cita?.minuto ?: 30) }
+    var reminder by rememberSaveable(cita?.id) { mutableStateOf(cita?.recordatorio ?: true) }
     var reasonError by rememberSaveable { mutableStateOf(false) }
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
     var showTimePicker by rememberSaveable { mutableStateOf(false) }
+    var confirmDelete by rememberSaveable { mutableStateOf(false) }
 
     val doneMessage = stringResource(R.string.appt_done)
     val hour12 = if (hour % 12 == 0) 12 else hour % 12
@@ -67,7 +72,7 @@ fun AppointmentScreen(
         containerColor = colors.background,
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.appt_title)) },
+                title = { Text(stringResource(if (cita == null) R.string.appt_title else R.string.appt_edit_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
@@ -206,6 +211,7 @@ fun AppointmentScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     TextButton(onClick = onBack) { Text(stringResource(R.string.common_cancel)) }
+                    if (cita != null) TextButton(onClick = { confirmDelete = true }) { Text(stringResource(R.string.common_delete), color = colors.error) }
                     Spacer(Modifier.width(dimensionResource(R.dimen.dp_16)))
                     Button(
                         onClick = {
@@ -215,7 +221,7 @@ fun AppointmentScreen(
                                 scope.launch {
                                     launch { snackbarHostState.showSnackbar(doneMessage) }
                                     delay(1000)
-                                    onDone(
+                                    if (cita == null) onDone(
                                         selectedPet.id,
                                         reason.trim(),
                                         dateMillis ?: System.currentTimeMillis(),
@@ -223,7 +229,11 @@ fun AppointmentScreen(
                                         minute,
                                         clinic.trim(),
                                         reminder
-                                    )
+                                    ) else onUpdate(cita.copy(
+                                        mascotaId = selectedPet.id, motivo = reason.trim(),
+                                        fecha = dateMillis ?: System.currentTimeMillis(), hora = hour,
+                                        minuto = minute, clinica = clinic.trim(), recordatorio = reminder
+                                    ))
                                 }
                             }
                         },
@@ -231,7 +241,7 @@ fun AppointmentScreen(
                             .weight(1f)
                             .height(dimensionResource(R.dimen.button_height))
                     ) {
-                        Text(stringResource(R.string.appt_confirm))
+                        Text(stringResource(if (cita == null) R.string.appt_confirm else R.string.appt_save_changes))
                     }
                 }
             }
@@ -253,6 +263,13 @@ fun AppointmentScreen(
             onConfirm = { h, m -> hour = h; minute = m; showTimePicker = false }
         )
     }
+    if (confirmDelete && cita != null) AlertDialog(
+        onDismissRequest = { confirmDelete = false },
+        title = { Text(stringResource(R.string.appt_delete_title)) },
+        text = { Text(stringResource(R.string.appt_delete_message, cita.motivo)) },
+        confirmButton = { TextButton(onClick = { confirmDelete = false; onDelete(cita) }) { Text(stringResource(R.string.common_delete), color = colors.error) } },
+        dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.common_cancel)) } }
+    )
 }
 
 @Preview(showBackground = true, showSystemUi = true)

@@ -46,6 +46,32 @@ class AuthViewModel @Inject constructor(
         _uiState.update { it.copy(errorMessage = null) }
     }
 
+    fun cambiarPassword(nuevaPassword: String, onSuccess: () -> Unit = {}) = viewModelScope.launch {
+        val email = _uiState.value.userEmail ?: return@launch
+        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        try {
+            if (nuevaPassword.length < 6) {
+                _uiState.update { it.copy(errorMessage = "auth_short_password") }
+            } else if (authRepository.cambiarPassword(email, nuevaPassword)) onSuccess()
+            else _uiState.update { it.copy(errorMessage = "auth_unavailable") }
+        } catch (_: Exception) {
+            _uiState.update { it.copy(errorMessage = "auth_unavailable") }
+        } finally { _uiState.update { it.copy(isLoading = false) } }
+    }
+
+    fun eliminarCuenta(onSuccess: () -> Unit = {}) = viewModelScope.launch {
+        val email = _uiState.value.userEmail ?: return@launch
+        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        try {
+            if (authRepository.eliminarCuenta(email)) {
+                _uiState.value = AuthUiState()
+                onSuccess()
+            } else _uiState.update { it.copy(errorMessage = "auth_unavailable") }
+        } catch (_: Exception) {
+            _uiState.update { it.copy(errorMessage = "auth_unavailable") }
+        } finally { _uiState.update { it.copy(isLoading = false) } }
+    }
+
     fun cerrarSesion() {
         _uiState.value = AuthUiState()
     }

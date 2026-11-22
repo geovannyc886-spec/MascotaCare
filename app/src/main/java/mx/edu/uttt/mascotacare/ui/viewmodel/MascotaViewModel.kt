@@ -82,42 +82,45 @@ class MascotaViewModel @Inject constructor(
         onSuccess: () -> Unit = {},
     ) = viewModelScope.launch {
         if (nombre.isBlank()) {
-            _uiState.update { it.copy(errorMessage = "El nombre de la mascota es obligatorio.") }
+            _uiState.update { it.copy(errorMessage = "add_pet_name_required") }
             return@launch
         }
-        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
-        try {
+        if (nombre.trim().length > 20) {
+            _uiState.update { it.copy(errorMessage = "add_pet_name_max_error") }
+            return@launch
+        }
+        if (ejecutarOperacion {
             mascotaRepository.insertar(
                 mx.edu.uttt.mascotacare.domain.model.Mascota(
                     nombre = nombre.trim(), especie = especie.ifBlank { "Otro" },
                     raza = raza.trim(), fechaNacimiento = fechaNacimiento, pesoKg = pesoKg,
                 ),
             )
-            onSuccess()
-        } catch (error: Exception) {
-            reportarError(error)
-        } finally {
-            _uiState.update { it.copy(isLoading = false) }
-        }
+        }) onSuccess()
     }
 
-    fun actualizarMascota(mascota: Mascota) = viewModelScope.launch {
-        ejecutarOperacion {
-            mascotaRepository.actualizar(mascota.toDomain())
+    fun actualizarMascota(mascota: Mascota, onSuccess: () -> Unit = {}) = viewModelScope.launch {
+        if (mascota.nombre.isBlank() || mascota.nombre.length > 20) {
+            _uiState.update { it.copy(errorMessage = if (mascota.nombre.isBlank()) "add_pet_name_required" else "add_pet_name_max_error") }
+            return@launch
         }
+        if (ejecutarOperacion {
+            mascotaRepository.actualizar(mascota.toDomain())
+        }) onSuccess()
     }
 
     fun eliminarMascota(mascota: Mascota, onSuccess: () -> Unit = {}) = viewModelScope.launch {
-        ejecutarOperacion { mascotaRepository.eliminar(mascota.toDomain()) }
-        if (_uiState.value.errorMessage == null) onSuccess()
+        if (ejecutarOperacion { mascotaRepository.eliminar(mascota.toDomain()) }) onSuccess()
     }
 
-    private suspend fun ejecutarOperacion(operacion: suspend () -> Unit) {
+    private suspend fun ejecutarOperacion(operacion: suspend () -> Unit): Boolean {
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
-        try {
+        return try {
             operacion()
+            true
         } catch (error: Exception) {
             reportarError(error)
+            false
         } finally {
             _uiState.update { it.copy(isLoading = false) }
         }

@@ -17,6 +17,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -32,7 +33,11 @@ fun LoginScreen(
     onCreateAccountClick: (email: String, password: String) -> Unit = { _, _ -> },
     authMessage: String? = null,
     onForgotPasswordClick: () -> Unit = {},
+    isLoading: Boolean = false,
+    onClearAuthMessage: () -> Unit = {},
 ) {
+    val invalidEmailMessage = stringResource(R.string.login_invalid_email)
+    val shortPasswordMessage = stringResource(R.string.login_short_password)
     var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
     var showPassword by rememberSaveable { mutableStateOf(false) }
@@ -69,13 +74,13 @@ fun LoginScreen(
 
         Spacer(Modifier.height(dimensionResource(R.dimen.dp_20)))
         Text(
-            "MascotaCare",
+            stringResource(R.string.login_brand),
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary
         )
         Text(
-            "Todo el cuidado de tu mascota en un solo lugar",
+            stringResource(R.string.login_tagline),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -84,8 +89,8 @@ fun LoginScreen(
 
         OutlinedTextField(
             value = email,
-            onValueChange = { email = it; error = null },
-            label = { Text("Correo electrónico") },
+            onValueChange = { email = it; error = null; onClearAuthMessage() },
+            label = { Text(stringResource(R.string.login_email)) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
             isError = error != null || authMessage != null,
@@ -96,8 +101,8 @@ fun LoginScreen(
 
         OutlinedTextField(
             value = password,
-            onValueChange = { password = it; error = null },
-            label = { Text("Contraseña") },
+            onValueChange = { password = it; error = null; onClearAuthMessage() },
+            label = { Text(stringResource(R.string.login_password)) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             visualTransformation = if (showPassword) VisualTransformation.None
@@ -107,8 +112,7 @@ fun LoginScreen(
                     Icon(
                         imageVector = if (showPassword) Icons.Filled.VisibilityOff
                         else Icons.Filled.Visibility,
-                        contentDescription = if (showPassword) "Ocultar contraseña"
-                        else "Mostrar contraseña"
+                        contentDescription = stringResource(if (showPassword) R.string.login_hide_password else R.string.login_show_password)
                     )
                 }
             },
@@ -123,7 +127,7 @@ fun LoginScreen(
             onClick = onForgotPasswordClick,
             modifier = Modifier.align(Alignment.End)
         ) {
-            Text("¿Olvidaste tu contraseña?", fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.login_forgot_password), fontWeight = FontWeight.Bold)
         }
 
         Spacer(Modifier.height(dimensionResource(R.dimen.dp_8)))
@@ -131,8 +135,8 @@ fun LoginScreen(
         Button(
             onClick = {
                 error = when {
-                    !email.contains("@") -> "Ingresa un correo válido"
-                    password.length < 6 -> "La contraseña debe tener al menos 6 caracteres"
+                    !email.contains("@") -> invalidEmailMessage
+                    password.length < 6 -> shortPasswordMessage
                     else -> null
                 }
                 if (error == null) {
@@ -142,26 +146,34 @@ fun LoginScreen(
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(dimensionResource(R.dimen.dp_52))
+                .height(dimensionResource(R.dimen.dp_52)),
+            enabled = !isLoading
         ) {
-            Text(if (creatingAccount) "Crear cuenta" else "Iniciar sesión", fontWeight = FontWeight.Bold)
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(dimensionResource(R.dimen.dp_20)),
+                    strokeWidth = dimensionResource(R.dimen.dp_2)
+                )
+            } else {
+                Text(stringResource(if (creatingAccount) R.string.auth_create_account else R.string.auth_sign_in), fontWeight = FontWeight.Bold)
+            }
         }
 
         Spacer(Modifier.height(dimensionResource(R.dimen.dp_32)))
         Text(
-            if (creatingAccount) "¿Ya tienes cuenta?" else "¿No tienes cuenta?",
+            stringResource(if (creatingAccount) R.string.login_have_account else R.string.login_no_account),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(Modifier.height(dimensionResource(R.dimen.dp_12)))
 
         OutlinedButton(
-            onClick = { creatingAccount = !creatingAccount; error = null },
+            onClick = { creatingAccount = !creatingAccount; error = null; onClearAuthMessage() },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(dimensionResource(R.dimen.dp_52))
         ) {
-            Text(if (creatingAccount) "Iniciar sesión" else "Crear cuenta", fontWeight = FontWeight.Bold)
+            Text(stringResource(if (creatingAccount) R.string.auth_sign_in else R.string.auth_create_account), fontWeight = FontWeight.Bold)
         }
     }
 }

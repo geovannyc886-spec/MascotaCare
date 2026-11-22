@@ -2,6 +2,7 @@ package mx.edu.uttt.mascotacare.ui
 
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -26,6 +27,7 @@ import mx.edu.uttt.mascotacare.R
 import mx.edu.uttt.mascotacare.data.database.entity.Cita
 import mx.edu.uttt.mascotacare.data.database.entity.Mascota
 import mx.edu.uttt.mascotacare.ui.theme.MascotaCareTheme
+import java.util.Calendar
 
 private data class NavItem(@StringRes val label: Int, val icon: ImageVector)
 
@@ -52,16 +54,15 @@ fun HomeScreen(
     onTabSelected: (Int) -> Unit = {},
     onScheduleClick: () -> Unit = {},
     onAddPetClick: () -> Unit = {},
-    onViewDetailClick: () -> Unit = {}
+    onViewDetailClick: (Cita) -> Unit = {}
 ) {
     var selectedFilter by rememberSaveable { mutableIntStateOf(0) }
 
-    val nextAppointment = proximasCitas.minWithOrNull(
-        compareBy<Cita> { it.fecha }.thenBy { it.hora }.thenBy { it.minuto }
-    )
+    val futureAppointments = proximasCitas.filter { it.momentoCita() >= System.currentTimeMillis() }
+    val nextAppointment = futureAppointments.minByOrNull { it.momentoCita() }
     val nextAppointmentPet = nextAppointment?.let { cita -> mascotas.find { it.id == cita.mascotaId } }
 
-    val reminderCitas = proximasCitas.filter { it.recordatorio }
+    val reminderCitas = futureAppointments.filter { it.recordatorio }
     val visibleReminders = if (selectedFilter == 0) reminderCitas
     else reminderCitas.filter { cita ->
         when (selectedFilter) {
@@ -132,7 +133,7 @@ fun HomeScreen(
                 NextAppointmentCard(
                     cita = nextAppointment,
                     pet = nextAppointmentPet,
-                    onViewDetailClick = onViewDetailClick
+                    onViewDetailClick = { cita -> onViewDetailClick(cita) }
                 )
             }
 
@@ -184,7 +185,7 @@ fun HomeScreen(
             } else {
                 items(visibleReminders, key = { it.id }) { cita ->
                     val pet = mascotas.find { it.id == cita.mascotaId }
-                    ReminderCitaItem(cita = cita, pet = pet)
+                    ReminderCitaItem(cita = cita, pet = pet, onClick = { onViewDetailClick(cita) })
                 }
             }
         }
@@ -200,7 +201,7 @@ private fun SectionTitle(text: String) {
 private fun NextAppointmentCard(
     cita: Cita?,
     pet: Mascota?,
-    onViewDetailClick: () -> Unit = {}
+    onViewDetailClick: (Cita) -> Unit = {}
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -229,7 +230,7 @@ private fun NextAppointmentCard(
                     val dateText = formatDate(cita.fecha)
                     Text("$petName · $dateText · $timeText", style = MaterialTheme.typography.bodyMedium)
                     Spacer(Modifier.height(dimensionResource(R.dimen.dp_12)))
-                    Button(onClick = onViewDetailClick) { Text(stringResource(R.string.home_view_detail)) }
+                    Button(onClick = { onViewDetailClick(cita) }) { Text(stringResource(R.string.home_view_detail)) }
                 } else {
                     Text(
                         stringResource(R.string.home_no_appointments),
@@ -299,7 +300,7 @@ private fun AddPetButton(onClick: () -> Unit = {}) {
 }
 
 @Composable
-private fun ReminderCitaItem(cita: Cita, pet: Mascota?) {
+private fun ReminderCitaItem(cita: Cita, pet: Mascota?, onClick: () -> Unit) {
     val hour12 = if (cita.hora % 12 == 0) 12 else cita.hora % 12
     val period = stringResource(if (cita.hora < 12) R.string.time_am else R.string.time_pm)
     val timeText = stringResource(R.string.time_format, hour12, cita.minuto, period)
@@ -307,6 +308,7 @@ private fun ReminderCitaItem(cita: Cita, pet: Mascota?) {
     val petName = pet?.nombre ?: ""
 
     ListItem(
+        modifier = Modifier.clickable(onClick = onClick),
         headlineContent = { Text(cita.motivo, fontWeight = FontWeight.Bold) },
         supportingContent = { Text("$petName · $dateText · $timeText") },
         leadingContent = {
@@ -331,6 +333,14 @@ private fun ReminderCitaItem(cita: Cita, pet: Mascota?) {
         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0f))
     )
 }
+
+private fun Cita.momentoCita(): Long = Calendar.getInstance().apply {
+    timeInMillis = fecha
+    set(Calendar.HOUR_OF_DAY, hora)
+    set(Calendar.MINUTE, minuto)
+    set(Calendar.SECOND, 0)
+    set(Calendar.MILLISECOND, 0)
+}.timeInMillis
 
 @Preview(showBackground = true, showSystemUi = true)
 @Composable

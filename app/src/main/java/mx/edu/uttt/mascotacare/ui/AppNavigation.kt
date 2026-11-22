@@ -15,24 +15,30 @@ import mx.edu.uttt.mascotacare.R
 import mx.edu.uttt.mascotacare.ui.viewmodel.AuthViewModel
 import mx.edu.uttt.mascotacare.ui.viewmodel.CitaViewModel
 import mx.edu.uttt.mascotacare.ui.viewmodel.MascotaViewModel
+import mx.edu.uttt.mascotacare.ui.viewmodel.VacunaViewModel
 
 object Routes {
     const val LOGIN = "login"
     const val HOME = "home"
     const val PETS = "pets"
-    const val ADD_PET = "add_pet"
+    const val ADD_PET = "add_pet?mascotaId={mascotaId}"
     const val VACCINES = "vaccines"
     const val APPOINTMENT = "appointment"
+    const val APPOINTMENT_EDIT = "appointment?citaId={citaId}"
     const val PROFILE = "profile"
     const val PET_DETAIL = "pet_detail/{petId}"
     fun petDetail(petId: Int) = "pet_detail/$petId"
+    fun addPet(mascotaId: Int? = null) =
+        if (mascotaId == null) "add_pet" else "add_pet?mascotaId=$mascotaId"
+    fun appointment(citaId: Int? = null) = if (citaId == null) APPOINTMENT else "appointment?citaId=$citaId"
 }
 
 @Composable
 fun AppNavigation(
     authViewModel: AuthViewModel = hiltViewModel(),
     mascotaViewModel: MascotaViewModel = hiltViewModel(),
-    citaViewModel: CitaViewModel = hiltViewModel()
+    citaViewModel: CitaViewModel = hiltViewModel(),
+    vacunaViewModel: VacunaViewModel = hiltViewModel()
 ) {
     val navController = rememberNavController()
     val authState by authViewModel.uiState.collectAsStateWithLifecycle()
@@ -45,6 +51,9 @@ fun AppNavigation(
         "auth_unavailable" -> authErrorMessage
         else -> authState.errorMessage
     }
+    val petNameRequired = stringResource(R.string.add_pet_name_error)
+    val petNameTooLong = stringResource(R.string.add_pet_name_max_error)
+    val petSaveError = stringResource(R.string.pet_save_error)
 
     LaunchedEffect(authState.isAuthenticated) {
         if (authState.isAuthenticated) {
@@ -55,13 +64,16 @@ fun AppNavigation(
         }
     }
 
-    val mascotas by mascotaViewModel.mascotas.collectAsStateWithLifecycle()
-    val filteredMascotas by mascotaViewModel.filteredMascotas.collectAsStateWithLifecycle()
-    val searchQuery by mascotaViewModel.searchQuery.collectAsStateWithLifecycle()
+    val mascotaState by mascotaViewModel.uiState.collectAsStateWithLifecycle()
+    val mascotas = mascotaState.mascotas
+    val filteredMascotas = mascotaState.mascotasFiltradas
+    val searchQuery = mascotaState.searchQuery
 
-    val proximasCitas by citaViewModel.proximasCitas.collectAsStateWithLifecycle()
-    val citasDeMascotaSeleccionada by citaViewModel.citasDeMascotaSeleccionada.collectAsStateWithLifecycle()
-    val selectedMascotaId by citaViewModel.selectedMascotaId.collectAsStateWithLifecycle()
+    val citaState by citaViewModel.uiState.collectAsStateWithLifecycle()
+    val proximasCitas = citaState.proximasCitas
+    val citasDeMascotaSeleccionada = citaState.citasDeMascota
+    val selectedMascotaId = citaState.selectedMascotaId
+    val vacunaState by vacunaViewModel.uiState.collectAsStateWithLifecycle()
 
     // Barra inferior: 0 = Inicio, 1 = Mascotas, 2 = Citas, 3 = Perfil
     val goToTab: (Int) -> Unit = { index ->
@@ -85,6 +97,8 @@ fun AppNavigation(
         composable(Routes.LOGIN) {
             LoginScreen(
                 authMessage = authMessage,
+                isLoading = authState.isLoading,
+                onClearAuthMessage = authViewModel::limpiarError,
                 onLoginClick = { email, password ->
                     authViewModel.limpiarError()
                     authViewModel.iniciarSesion(email, password)
@@ -99,11 +113,11 @@ fun AppNavigation(
             HomeScreen(
                 userName = authState.userEmail?.substringBefore('@')?.replaceFirstChar { it.uppercase() }.orEmpty(),
                 mascotas = mascotas,
-                proximasCitas = proximasCitas,
+                proximasCitas = citaState.citas,
                 onTabSelected = goToTab,
-                onScheduleClick = { navController.navigate(Routes.APPOINTMENT) },
-                onAddPetClick = { navController.navigate(Routes.ADD_PET) },
-                onViewDetailClick = { goToTab(2) }
+                onScheduleClick = { navController.navigate(Routes.appointment()) },
+                onAddPetClick = { navController.navigate(Routes.addPet()) },
+                onViewDetailClick = { cita -> navController.navigate(Routes.appointment(cita.id)) }
             )
         }
         composable(Routes.PETS) {
@@ -113,7 +127,7 @@ fun AppNavigation(
                 onSearchQueryChange = { mascotaViewModel.setSearchQuery(it) },
                 totalMascotasCount = mascotas.size,
                 onTabSelected = goToTab,
-                onAddPetClick = { navController.navigate(Routes.ADD_PET) },
+                onAddPetClick = { navController.navigate(Routes.addPet()) },
                 onPetClick = { navController.navigate(Routes.petDetail(it)) },
             )
         }
@@ -129,37 +143,71 @@ fun AppNavigation(
                     onBack = { navController.popBackStack() },
                     onDelete = { mascotaViewModel.eliminarMascota(pet) {
                         navController.popBackStack()
-                    } }
+                    } },
+                    onEdit = { navController.navigate(Routes.addPet(pet.id)) }
                 )
             }
         }
-        composable(Routes.ADD_PET) {
+        composable(
+            route = Routes.ADD_PET,
+            arguments = listOf(navArgument("mascotaId") { type = NavType.StringType; nullable = true; defaultValue = null })
+        ) { entry ->
+            val mascotaId = entry.arguments?.getString("mascotaId")?.toIntOrNull()
+            val mascotaEdicion = mascotas.firstOrNull { it.id == mascotaId }
             AddPetScreen(
                 onBack = { navController.popBackStack() },
                 onSave = { nombre, especie, raza, fechaNac, peso ->
-                    mascotaViewModel.guardarMascota(
-                        nombre = nombre,
-                        especie = especie,
-                        raza = raza,
-                        fechaNacimiento = fechaNac,
-                        pesoKg = peso,
-                        onSuccess = { navController.popBackStack() }
-                    )
+                    if (mascotaEdicion == null) {
+                        mascotaViewModel.guardarMascota(
+                            nombre = nombre, especie = especie, raza = raza,
+                            fechaNacimiento = fechaNac, pesoKg = peso,
+                            onSuccess = { navController.popBackStack() }
+                        )
+                    } else {
+                        mascotaViewModel.actualizarMascota(
+                            mascotaEdicion.copy(
+                                nombre = nombre, especie = especie, raza = raza,
+                                fechaNacimiento = fechaNac, pesoKg = peso
+                            ),
+                            onSuccess = { navController.popBackStack() }
+                        )
+                    }
                 },
-                onTabSelected = goToTab
+                onTabSelected = goToTab,
+                mascota = mascotaEdicion,
+                errorMessage = when (mascotaState.errorMessage) {
+                    "add_pet_name_required" -> petNameRequired
+                    "add_pet_name_max_error" -> petNameTooLong
+                    null -> null
+                    else -> petSaveError
+                },
+                isLoading = mascotaState.isLoading
             )
         }
         composable(Routes.VACCINES) {
             VaccinesScreen(
                 mascotas = mascotas,
+                vacunas = vacunaState.vacunasDeMascota,
                 citas = citasDeMascotaSeleccionada,
                 selectedMascotaId = selectedMascotaId,
-                onMascotaSelect = { id -> citaViewModel.selectMascotaId(id) },
+                onMascotaSelect = { id ->
+                    citaViewModel.selectMascotaId(id)
+                    vacunaViewModel.seleccionarMascota(id)
+                },
                 onTabSelected = goToTab,
-                onAddClick = { navController.navigate(Routes.APPOINTMENT) }
+                onAddClick = {},
+                onSaveVacuna = vacunaViewModel::guardarVacuna,
+                onUpdateVacuna = vacunaViewModel::actualizarVacuna,
+                onDeleteVacuna = vacunaViewModel::eliminarVacuna,
+                onCitaClick = { cita -> navController.navigate(Routes.appointment(cita.id)) }
             )
         }
-        composable(Routes.APPOINTMENT) {
+        composable(
+            route = Routes.APPOINTMENT_EDIT,
+            arguments = listOf(navArgument("citaId") { type = NavType.StringType; nullable = true; defaultValue = null })
+        ) { entry ->
+            val citaId = entry.arguments?.getString("citaId")?.toIntOrNull()
+            val citaEdicion = citaState.citas.firstOrNull { it.id == citaId }
             AppointmentScreen(
                 mascotas = mascotas,
                 onBack = { navController.popBackStack() },
@@ -175,8 +223,11 @@ fun AppNavigation(
                         onSuccess = { navController.popBackStack() }
                     )
                 },
-                onAddPetClick = { navController.navigate(Routes.ADD_PET) },
-                onTabSelected = goToTab
+                onAddPetClick = { navController.navigate(Routes.addPet()) },
+                onTabSelected = goToTab,
+                cita = citaEdicion,
+                onUpdate = { cita -> citaViewModel.actualizarCita(cita) { navController.popBackStack() } },
+                onDelete = { cita -> citaViewModel.eliminarCita(cita) { navController.popBackStack() } }
             )
         }
         composable(Routes.PROFILE) {
@@ -184,6 +235,20 @@ fun AppNavigation(
                 userName = authState.userEmail?.substringBefore('@')?.replaceFirstChar { it.uppercase() }.orEmpty(),
                 userEmail = authState.userEmail.orEmpty(),
                 onTabSelected = goToTab,
+                authError = when (authState.errorMessage) {
+                    "auth_short_password" -> stringResource(R.string.login_short_password)
+                    "auth_unavailable" -> stringResource(R.string.auth_unavailable)
+                    else -> null
+                },
+                onChangePassword = { password, done -> authViewModel.cambiarPassword(password, done) },
+                onDeleteAccount = {
+                    authViewModel.eliminarCuenta {
+                        navController.navigate(Routes.LOGIN) {
+                            popUpTo(Routes.HOME) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
+                },
                 onLogout = {
                     authViewModel.cerrarSesion()
                     navController.navigate(Routes.LOGIN) {
