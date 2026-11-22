@@ -1,25 +1,26 @@
 package mx.edu.uttt.mascotacare.ui.viewmodel
 
-import android.app.Application
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
+import dagger.hilt.android.lifecycle.HiltViewModel
 import androidx.lifecycle.viewModelScope
-import mx.edu.uttt.mascotacare.data.database.AppDatabase
+import mx.edu.uttt.mascotacare.data.mapper.toEntity
 import mx.edu.uttt.mascotacare.data.database.entity.Mascota
+import mx.edu.uttt.mascotacare.domain.repository.MascotaRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-class MascotaViewModel(application: Application) : AndroidViewModel(application) {
+@HiltViewModel
+class MascotaViewModel @Inject constructor(private val mascotaRepository: MascotaRepository) : ViewModel() {
 
-    private val db = AppDatabase.obtener(application)
-    private val mascotaDao = db.mascotaDao()
-
-    val mascotas: StateFlow<List<Mascota>> = mascotaDao.obtenerTodas()
+    val mascotas: StateFlow<List<Mascota>> = mascotaRepository.obtenerTodas().map { it.map { mascota -> mascota.toEntity() } }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -33,11 +34,12 @@ class MascotaViewModel(application: Application) : AndroidViewModel(application)
     val filteredMascotas: StateFlow<List<Mascota>> = _searchQuery
         .flatMapLatest { query ->
             if (query.isBlank()) {
-                mascotaDao.obtenerTodas()
+                mascotaRepository.obtenerTodas()
             } else {
-                mascotaDao.buscarPorNombre(query.trim())
+                mascotaRepository.buscarPorNombre(query.trim())
             }
         }
+        .map { it.map { mascota -> mascota.toEntity() } }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -58,21 +60,23 @@ class MascotaViewModel(application: Application) : AndroidViewModel(application)
     ) {
         if (nombre.isBlank()) return
         viewModelScope.launch {
-            val mascota = Mascota(
+            val mascota = mx.edu.uttt.mascotacare.domain.model.Mascota(
                 nombre = nombre.trim(),
                 especie = especie.ifBlank { "Otro" },
                 raza = raza.trim(),
                 fechaNacimiento = fechaNacimiento,
                 pesoKg = pesoKg
             )
-            mascotaDao.insertar(mascota)
+            mascotaRepository.insertar(mascota)
             onSuccess()
         }
     }
 
     fun eliminarMascota(mascota: Mascota, onSuccess: () -> Unit = {}) {
         viewModelScope.launch {
-            mascotaDao.eliminar(mascota)
+            mascotaRepository.eliminar(mascota.let {
+                mx.edu.uttt.mascotacare.domain.model.Mascota(it.id, it.nombre, it.especie, it.raza, it.fechaNacimiento, it.pesoKg, it.fotoUri)
+            })
             onSuccess()
         }
     }

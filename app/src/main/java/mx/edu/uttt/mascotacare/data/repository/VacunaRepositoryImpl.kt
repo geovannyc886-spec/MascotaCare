@@ -7,8 +7,9 @@ import mx.edu.uttt.mascotacare.domain.model.Vacuna
 import mx.edu.uttt.mascotacare.domain.repository.VacunaRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import javax.inject.Inject
 
-class VacunaRepositoryImpl(private val vacunaDao: VacunaDao) : VacunaRepository {
+class VacunaRepositoryImpl @Inject constructor(private val vacunaDao: VacunaDao) : VacunaRepository {
     override fun obtenerTodas(): Flow<List<Vacuna>> =
         vacunaDao.obtenerTodas().map { lista -> lista.map { it.toDomain() } }
 

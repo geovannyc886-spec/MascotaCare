@@ -3,13 +3,11 @@ package mx.edu.uttt.mascotacare.ui
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.ui.res.stringResource
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -17,8 +15,6 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import mx.edu.uttt.mascotacare.R
-import mx.edu.uttt.mascotacare.data.database.AppDatabase
-import mx.edu.uttt.mascotacare.data.database.entity.Mascota
 import mx.edu.uttt.mascotacare.data.repository.LocalAuthRepository
 import mx.edu.uttt.mascotacare.ui.viewmodel.CitaViewModel
 import mx.edu.uttt.mascotacare.ui.viewmodel.MascotaViewModel
@@ -40,13 +36,11 @@ object Routes {
 
 @Composable
 fun AppNavigation(
-    mascotaViewModel: MascotaViewModel = viewModel(),
-    citaViewModel: CitaViewModel = viewModel()
+    authRepository: LocalAuthRepository,
+    mascotaViewModel: MascotaViewModel = hiltViewModel(),
+    citaViewModel: CitaViewModel = hiltViewModel()
 ) {
     val navController = rememberNavController()
-    val context = LocalContext.current
-    val database = remember(context) { AppDatabase.obtener(context) }
-    val authRepository = remember(database) { LocalAuthRepository(database.usuarioDao()) }
     val scope = rememberCoroutineScope()
     var currentUserEmail by rememberSaveable { mutableStateOf<String?>(null) }
     var authMessage by rememberSaveable { mutableStateOf<String?>(null) }

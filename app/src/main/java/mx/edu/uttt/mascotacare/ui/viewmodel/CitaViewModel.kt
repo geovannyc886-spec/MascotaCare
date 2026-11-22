@@ -1,10 +1,11 @@
 package mx.edu.uttt.mascotacare.ui.viewmodel
 
-import android.app.Application
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
+import dagger.hilt.android.lifecycle.HiltViewModel
 import androidx.lifecycle.viewModelScope
-import mx.edu.uttt.mascotacare.data.database.AppDatabase
+import mx.edu.uttt.mascotacare.data.mapper.toEntity
 import mx.edu.uttt.mascotacare.data.database.entity.Cita
+import mx.edu.uttt.mascotacare.domain.repository.CitaRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -15,13 +16,12 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.Calendar
+import javax.inject.Inject
 
-class CitaViewModel(application: Application) : AndroidViewModel(application) {
+@HiltViewModel
+class CitaViewModel @Inject constructor(private val citaRepository: CitaRepository) : ViewModel() {
 
-    private val db = AppDatabase.obtener(application)
-    private val citaDao = db.citaDao()
-
-    val todasLasCitas: StateFlow<List<Cita>> = citaDao.obtenerTodas()
+    val todasLasCitas: StateFlow<List<Cita>> = citaRepository.obtenerTodas().map { it.map { cita -> cita.toEntity() } }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -36,8 +36,8 @@ class CitaViewModel(application: Application) : AndroidViewModel(application) {
         set(Calendar.MILLISECOND, 0)
     }.timeInMillis
 
-    val proximasCitas: StateFlow<List<Cita>> = citaDao.obtenerProximas(inicioRangoProximas)
-        .map { citas -> citas.filter { momentoCita(it) >= System.currentTimeMillis() } }
+    val proximasCitas: StateFlow<List<Cita>> = citaRepository.obtenerProximas(inicioRangoProximas)
+        .map { citas -> citas.map { it.toEntity() }.filter { momentoCita(it) >= System.currentTimeMillis() } }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -51,11 +51,12 @@ class CitaViewModel(application: Application) : AndroidViewModel(application) {
     val citasDeMascotaSeleccionada: StateFlow<List<Cita>> = _selectedMascotaId
         .flatMapLatest { id ->
             if (id != null) {
-                citaDao.obtenerDeMascota(id)
+                citaRepository.obtenerDeMascota(id)
             } else {
-                citaDao.obtenerTodas()
+                citaRepository.obtenerTodas()
             }
         }
+        .map { it.map { cita -> cita.toEntity() } }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -78,7 +79,7 @@ class CitaViewModel(application: Application) : AndroidViewModel(application) {
     ) {
         if (motivo.isBlank()) return
         viewModelScope.launch {
-            val cita = Cita(
+            val cita = mx.edu.uttt.mascotacare.domain.model.Cita(
                 mascotaId = mascotaId,
                 motivo = motivo.trim(),
                 fecha = fecha,
@@ -87,14 +88,25 @@ class CitaViewModel(application: Application) : AndroidViewModel(application) {
                 clinica = clinica.trim(),
                 recordatorio = recordatorio
             )
-            citaDao.insertar(cita)
+            citaRepository.insertar(cita)
             onSuccess()
         }
     }
 
     fun eliminarCita(cita: Cita, onSuccess: () -> Unit = {}) {
         viewModelScope.launch {
-            citaDao.eliminar(cita)
+            citaRepository.eliminar(
+                mx.edu.uttt.mascotacare.domain.model.Cita(
+                    id = cita.id,
+                    mascotaId = cita.mascotaId,
+                    motivo = cita.motivo,
+                    fecha = cita.fecha,
+                    hora = cita.hora,
+                    minuto = cita.minuto,
+                    clinica = cita.clinica,
+                    recordatorio = cita.recordatorio
+                )
+            )
             onSuccess()
         }
     }

@@ -1,6 +1,5 @@
 package mx.edu.uttt.mascotacare.data.database
 
-import android.content.Context
 import androidx.room.Database
 import androidx.room.migration.Migration
 import androidx.room.RoomDatabase
@@ -58,7 +57,5 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        fun obtener(context: Context): AppDatabase =
-            mx.edu.uttt.mascotacare.data.di.DatabaseModule.provideDatabase(context)
     }
 }

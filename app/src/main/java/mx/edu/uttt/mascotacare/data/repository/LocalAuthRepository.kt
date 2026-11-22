@@ -6,8 +6,11 @@ import mx.edu.uttt.mascotacare.data.database.entity.Usuario
 import java.security.SecureRandom
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class LocalAuthRepository(private val usuarioDao: UsuarioDao) {
+@Singleton
+class LocalAuthRepository @Inject constructor(private val usuarioDao: UsuarioDao) {
     suspend fun crearCuenta(emailInput: String, password: String): Boolean {
         val email = emailInput.trim().lowercase()
         if (usuarioDao.obtenerPorEmail(email) != null) return false

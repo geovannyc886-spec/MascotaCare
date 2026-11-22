@@ -7,8 +7,9 @@ import mx.edu.uttt.mascotacare.domain.model.Cita
 import mx.edu.uttt.mascotacare.domain.repository.CitaRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import javax.inject.Inject
 
-class CitaRepositoryImpl(private val citaDao: CitaDao) : CitaRepository {
+class CitaRepositoryImpl @Inject constructor(private val citaDao: CitaDao) : CitaRepository {
     override fun obtenerTodas(): Flow<List<Cita>> =
         citaDao.obtenerTodas().map { lista -> lista.map { it.toDomain() } }
 
