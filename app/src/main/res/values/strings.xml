@@ -1,0 +1,99 @@
+<resources>
+    <string name="app_name">MascotaCare</string>
+    <string name="nav_home">Inicio</string>
+    <string name="nav_pets">Mascotas</string>
+    <string name="nav_appointments">Citas</string>
+    <string name="nav_profile">Perfil</string>
+    <string name="home_my_pets">Mis mascotas</string>
+    <string name="home_add">Agregar</string>
+    <string name="pets_search">Buscar mascota...</string>
+    <string name="pets_family">Familia peluda</string>
+    <string name="pets_count">%d mascotas</string>
+    <string name="pets_photo_desc">Foto de %s</string>
+    <string name="pets_empty">Aún no hay mascotas registradas. Usa Agregar para guardar la primera.</string>
+    <string name="pets_no_search_results">No se encontraron mascotas con esa búsqueda.</string>
+    <string name="pets_saved_status">Ficha guardada</string>
+    <string name="pet_age_unknown">Edad no indicada</string>
+
+    <string name="pet_detail_title">Detalle de la mascota</string>
+    <string name="pet_detail_delete">Eliminar mascota</string>
+    <string name="pet_detail_delete_confirm_title">¿Eliminar a %s?</string>
+    <string name="pet_detail_delete_confirm_message">¿Estás seguro de que deseas eliminar esta mascota? Se eliminarán todas sus citas asociadas.</string>
+    <string name="pet_detail_species">Especie: %s</string>
+    <string name="pet_detail_breed">Raza: %s</string>
+    <string name="pet_detail_birth">Nacimiento: %s</string>
+    <string name="pet_detail_weight">Peso: %s kg</string>
+
+    <string name="species_dog">Perro</string>
+    <string name="species_cat">Gato</string>
+    <string name="species_rabbit">Conejo</string>
+    <string name="species_bird">Ave</string>
+    <string name="species_other">Otro</string>
+
+    <string name="add_pet_title">Agregar mascota</string>
+    <string name="common_back">Volver</string>
+    <string name="add_pet_photo_desc">Foto de la mascota</string>
+    <string name="add_pet_photo_hint">Toca para cambiar la foto</string>
+    <string name="add_pet_name">Nombre de la mascota</string>
+    <string name="add_pet_name_error">Ingresa el nombre</string>
+    <string name="add_pet_species">Especie</string>
+    <string name="add_pet_species_error">Selecciona la especie</string>
+    <string name="add_pet_breed">Raza (opcional)</string>
+    <string name="add_pet_birth">Fecha de nacimiento</string>
+    <string name="add_pet_weight">Peso aproximado (kg)</string>
+    <string name="common_cancel">Cancelar</string>
+    <string name="common_accept">Aceptar</string>
+    <string name="common_delete">Eliminar</string>
+    <string name="add_pet_save">Guardar mascota</string>
+
+    <string name="appt_done">Cita agendada con éxito</string>
+    <string name="time_am">a. m.</string>
+    <string name="time_pm">p. m.</string>
+    <string name="time_format">%1$d:%2$02d %3$s</string>
+    <string name="appt_title">Agendar cita</string>
+    <string name="appt_subtitle">Programa la próxima consulta o vacuna</string>
+    <string name="appt_pet">Mascota</string>
+    <string name="appt_reason">Motivo de la cita</string>
+    <string name="appt_reason_error">Ingresa el motivo</string>
+    <string name="appt_date">Fecha</string>
+    <string name="appt_time">Hora</string>
+    <string name="appt_clinic">Clínica o veterinaria (opcional)</string>
+    <string name="appt_reminder">Recordar un día antes</string>
+    <string name="appt_confirm">Confirmar cita</string>
+    <string name="appt_no_pets_warning">No tienes mascotas registradas. Registra una mascota antes de agendar una cita.</string>
+    <string name="appt_add_pet_btn">Agregar mascota</string>
+
+    <string name="home_no_appointments">No hay próximas citas agendadas.</string>
+    <string name="home_next_appointment">Próxima cita</string>
+    <string name="home_no_pets">No hay mascotas registradas.</string>
+    <string name="home_no_reminders">No hay recordatorios pendientes.</string>
+    <string name="home_view_detail">Ver detalle</string>
+    <string name="home_greeting">Hola, %1$s</string>
+    <string name="home_reminders">Recordatorios</string>
+    <string name="filter_all">Todo</string>
+    <string name="filter_vaccines">Vacunas</string>
+    <string name="filter_appointments">Citas</string>
+    <string name="filter_health">Salud</string>
+    <string name="auth_invalid_credentials">No se encontró esa cuenta o la contraseña es incorrecta.</string>
+    <string name="auth_account_exists">Ya existe una cuenta con ese correo.</string>
+    <string name="auth_unavailable">No se pudo completar la operación. Inténtalo de nuevo.</string>
+
+    <string name="vaccines_title">Calendario de vacunas</string>
+    <string name="home_schedule_appointment">Agendar cita</string>
+    <string name="vaccines_of">Historial de %s</string>
+    <string name="vaccines_records">%d registros</string>
+    <string name="vaccines_no_pets">Registra una mascota para ver su calendario.</string>
+    <string name="vaccines_no_citas">No hay citas registradas para esta mascota.</string>
+    <string name="calendar_prev">Mes anterior</string>
+    <string name="calendar_next">Mes siguiente</string>
+    <string name="calendar_month_year">%1$s %2$d</string>
+    <string name="vaccine_pending">Pendiente</string>
+    <string name="vaccine_applied">Aplicada</string>
+
+    <string name="profile_title">Mi Perfil</string>
+    <string name="profile_initial_fallback">?</string>
+    <string name="profile_version">MascotaCare v1.0</string>
+    <string name="profile_logout">Cerrar sesión</string>
+    <string name="profile_logout_confirm_title">¿Cerrar sesión?</string>
+    <string name="profile_logout_confirm_message">¿Estás seguro de que deseas salir de tu cuenta?</string>
+</resources>
