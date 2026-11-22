@@ -1,11 +1,8 @@
 package mx.edu.uttt.mascotacare.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.ui.res.stringResource
@@ -15,12 +12,9 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import mx.edu.uttt.mascotacare.R
-import mx.edu.uttt.mascotacare.data.repository.LocalAuthRepository
+import mx.edu.uttt.mascotacare.ui.viewmodel.AuthViewModel
 import mx.edu.uttt.mascotacare.ui.viewmodel.CitaViewModel
 import mx.edu.uttt.mascotacare.ui.viewmodel.MascotaViewModel
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 object Routes {
     const val LOGIN = "login"
@@ -36,17 +30,30 @@ object Routes {
 
 @Composable
 fun AppNavigation(
-    authRepository: LocalAuthRepository,
+    authViewModel: AuthViewModel = hiltViewModel(),
     mascotaViewModel: MascotaViewModel = hiltViewModel(),
     citaViewModel: CitaViewModel = hiltViewModel()
 ) {
     val navController = rememberNavController()
-    val scope = rememberCoroutineScope()
-    var currentUserEmail by rememberSaveable { mutableStateOf<String?>(null) }
-    var authMessage by rememberSaveable { mutableStateOf<String?>(null) }
+    val authState by authViewModel.uiState.collectAsStateWithLifecycle()
     val loginFailedMessage = stringResource(R.string.auth_invalid_credentials)
     val accountExistsMessage = stringResource(R.string.auth_account_exists)
     val authErrorMessage = stringResource(R.string.auth_unavailable)
+    val authMessage = when (authState.errorMessage) {
+        "auth_invalid_credentials" -> loginFailedMessage
+        "auth_account_exists" -> accountExistsMessage
+        "auth_unavailable" -> authErrorMessage
+        else -> authState.errorMessage
+    }
+
+    LaunchedEffect(authState.isAuthenticated) {
+        if (authState.isAuthenticated) {
+            navController.navigate(Routes.HOME) {
+                popUpTo(Routes.LOGIN) { inclusive = true }
+                launchSingleTop = true
+            }
+        }
+    }
 
     val mascotas by mascotaViewModel.mascotas.collectAsStateWithLifecycle()
     val filteredMascotas by mascotaViewModel.filteredMascotas.collectAsStateWithLifecycle()
@@ -79,54 +86,18 @@ fun AppNavigation(
             LoginScreen(
                 authMessage = authMessage,
                 onLoginClick = { email, password ->
-                    authMessage = null
-                    scope.launch {
-                        val authenticated = runCatching {
-                            withContext(Dispatchers.IO) {
-                                authRepository.iniciarSesion(email, password)
-                            }
-                        }.getOrElse {
-                            authMessage = authErrorMessage
-                            false
-                        }
-                        if (authenticated) {
-                            currentUserEmail = email.trim().lowercase()
-                            navController.navigate(Routes.HOME) {
-                                popUpTo(Routes.LOGIN) { inclusive = true }
-                                launchSingleTop = true
-                            }
-                        } else if (authMessage == null) {
-                            authMessage = loginFailedMessage
-                        }
-                    }
+                    authViewModel.limpiarError()
+                    authViewModel.iniciarSesion(email, password)
                 },
                 onCreateAccountClick = { email, password ->
-                    authMessage = null
-                    scope.launch {
-                        val created = runCatching {
-                            withContext(Dispatchers.IO) {
-                                authRepository.crearCuenta(email, password)
-                            }
-                        }.getOrElse {
-                            authMessage = authErrorMessage
-                            false
-                        }
-                        if (created) {
-                            currentUserEmail = email.trim().lowercase()
-                            navController.navigate(Routes.HOME) {
-                                popUpTo(Routes.LOGIN) { inclusive = true }
-                                launchSingleTop = true
-                            }
-                        } else if (authMessage == null) {
-                            authMessage = accountExistsMessage
-                        }
-                    }
+                    authViewModel.limpiarError()
+                    authViewModel.crearCuenta(email, password)
                 }
             )
         }
         composable(Routes.HOME) {
             HomeScreen(
-                userName = currentUserEmail?.substringBefore('@')?.replaceFirstChar { it.uppercase() }.orEmpty(),
+                userName = authState.userEmail?.substringBefore('@')?.replaceFirstChar { it.uppercase() }.orEmpty(),
                 mascotas = mascotas,
                 proximasCitas = proximasCitas,
                 onTabSelected = goToTab,
@@ -210,11 +181,11 @@ fun AppNavigation(
         }
         composable(Routes.PROFILE) {
             ProfileScreen(
-                userName = currentUserEmail?.substringBefore('@')?.replaceFirstChar { it.uppercase() }.orEmpty(),
-                userEmail = currentUserEmail.orEmpty(),
+                userName = authState.userEmail?.substringBefore('@')?.replaceFirstChar { it.uppercase() }.orEmpty(),
+                userEmail = authState.userEmail.orEmpty(),
                 onTabSelected = goToTab,
                 onLogout = {
-                    currentUserEmail = null
+                    authViewModel.cerrarSesion()
                     navController.navigate(Routes.LOGIN) {
                         popUpTo(Routes.HOME) { inclusive = true }
                         launchSingleTop = true
