@@ -33,6 +33,9 @@ import mx.edu.uttt.mascotacare.data.database.entity.Cita
 import mx.edu.uttt.mascotacare.data.database.entity.Mascota
 import mx.edu.uttt.mascotacare.domain.model.Vacuna
 import mx.edu.uttt.mascotacare.ui.theme.MascotaCareTheme
+import mx.edu.uttt.mascotacare.util.dateTimeAtLocalTime
+import mx.edu.uttt.mascotacare.util.sameUtcDay
+import mx.edu.uttt.mascotacare.util.utcCalendar
 import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -74,10 +77,7 @@ fun VaccinesScreen(
     // Filter citas by selected day if day filter active
     val filteredVacunas = if (dayFilterActive) {
         vacunas.filter { vacuna ->
-            val cal = Calendar.getInstance().apply { timeInMillis = vacuna.fecha }
-            cal.get(Calendar.YEAR) == selYear &&
-                cal.get(Calendar.MONTH) == selMonth &&
-                cal.get(Calendar.DAY_OF_MONTH) == selDay
+            sameUtcDay(vacuna.fecha, selYear, selMonth, selDay)
         }
     } else vacunas
 
@@ -214,12 +214,14 @@ fun VaccinesScreen(
 
             if (citas.isNotEmpty()) {
                 Text(stringResource(R.string.vaccines_appointments), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                citas.filter { !dayFilterActive || Calendar.getInstance().run { timeInMillis = it.fecha; get(Calendar.YEAR) == selYear && get(Calendar.MONTH) == selMonth && get(Calendar.DAY_OF_MONTH) == selDay } }
+                citas.filter { !dayFilterActive || sameUtcDay(it.fecha, selYear, selMonth, selDay) }
                     .forEach { cita ->
                         Card(Modifier.fillMaxWidth().clickable { onCitaClick(cita) }, colors = CardDefaults.cardColors(containerColor = colors.surfaceVariant)) {
                             ListItem(headlineContent = { Text(cita.motivo) }, supportingContent = { Text(formatDate(cita.fecha)) }, trailingContent = { Text(stringResource(R.string.common_edit)) }, colors = ListItemDefaults.colors(containerColor = colors.surfaceVariant))
                         }
                     }
+            } else if (mascotas.isNotEmpty()) {
+                Text(stringResource(R.string.vaccines_no_appointments), color = colors.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
             }
 
             Spacer(Modifier.height(dimensionResource(R.dimen.dp_72)))
@@ -262,7 +264,7 @@ private fun CalendarCard(
 
     // Days with citas in this month
     val daysWithCitas = vacunas.mapNotNull { vacuna ->
-        val c = Calendar.getInstance().apply { timeInMillis = vacuna.fecha }
+        val c = utcCalendar(vacuna.fecha)
         if (c.get(Calendar.YEAR) == year && c.get(Calendar.MONTH) == month) {
             c.get(Calendar.DAY_OF_MONTH)
         } else null
@@ -356,14 +358,7 @@ private fun CalendarCard(
 @Composable
 private fun CitaCard(cita: Cita) {
     val colors = MaterialTheme.colorScheme
-    val isPast = Calendar.getInstance().run {
-        timeInMillis = cita.fecha
-        set(Calendar.HOUR_OF_DAY, cita.hora)
-        set(Calendar.MINUTE, cita.minuto)
-        set(Calendar.SECOND, 0)
-        set(Calendar.MILLISECOND, 0)
-        timeInMillis < System.currentTimeMillis()
-    }
+    val isPast = dateTimeAtLocalTime(cita.fecha, cita.hora, cita.minuto) < System.currentTimeMillis()
     val hour12 = if (cita.hora % 12 == 0) 12 else cita.hora % 12
     val period = stringResource(if (cita.hora < 12) R.string.time_am else R.string.time_pm)
     val timeStr = stringResource(R.string.time_format, hour12, cita.minuto, period)

@@ -2,8 +2,11 @@ package mx.edu.uttt.mascotacare.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import mx.edu.uttt.mascotacare.util.dateTimeAtLocalTime
+import mx.edu.uttt.mascotacare.util.isDateBeforeToday
 import java.util.Calendar
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,17 +30,19 @@ data class CitaUiState(
     val selectedMascotaId: Int? = null,
     val isLoading: Boolean = true,
     val errorMessage: String? = null,
+    val successMessage: String? = null,
 )
 
 @HiltViewModel
 class CitaViewModel @Inject constructor(
     private val citaRepository: CitaRepository,
 ) : ViewModel() {
+    private var retryAction: (() -> Unit)? = null
 
     // Observer: las consultas Room se comparten con stateIn y WhileSubscribed.
     val todasLasCitas: StateFlow<List<Cita>> = citaRepository.obtenerTodas()
         .map { lista -> lista.map { it.toEntity() } }
-        .catch { error -> reportarError(error) }
+        .catch { error -> reportarError(error, "database_load_error") }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val inicioRangoProximas = Calendar.getInstance().apply {
@@ -50,7 +55,7 @@ class CitaViewModel @Inject constructor(
 
     val proximasCitas: StateFlow<List<Cita>> = citaRepository.obtenerProximas(inicioRangoProximas)
         .map { citas -> citas.map { it.toEntity() }.filter { momentoCita(it) >= System.currentTimeMillis() } }
-        .catch { error -> reportarError(error) }
+        .catch { error -> reportarError(error, "database_load_error") }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _selectedMascotaId = MutableStateFlow<Int?>(null)
@@ -62,7 +67,7 @@ class CitaViewModel @Inject constructor(
             if (id == null) citaRepository.obtenerTodas() else citaRepository.obtenerDeMascota(id)
         }
         .map { lista -> lista.map { it.toEntity() } }
-        .catch { error -> reportarError(error) }
+        .catch { error -> reportarError(error, "database_load_error") }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _uiState = MutableStateFlow(CitaUiState())
@@ -90,6 +95,9 @@ class CitaViewModel @Inject constructor(
         _selectedMascotaId.value = mascotaId
     }
 
+    fun clearMessage() { _uiState.update { it.copy(errorMessage = null, successMessage = null) } }
+    fun reintentar() { retryAction?.invoke() }
+
     fun guardarCita(
         mascotaId: Int,
         motivo: String,
@@ -99,45 +107,54 @@ class CitaViewModel @Inject constructor(
         clinica: String,
         recordatorio: Boolean,
         onSuccess: () -> Unit = {},
-    ) = viewModelScope.launch {
+    ): Job = viewModelScope.launch {
         if (motivo.isBlank()) {
-            _uiState.update { it.copy(errorMessage = "El motivo de la cita es obligatorio.") }
+            _uiState.update { it.copy(errorMessage = "appt_reason_required") }
             return@launch
         }
-        ejecutarOperacion {
+        if (momentoCita(fecha, hora, minuto) < System.currentTimeMillis()) {
+            _uiState.update { it.copy(errorMessage = if (fechaEsPasada(fecha)) "appt_date_past" else "appt_time_past") }
+            return@launch
+        }
+        retryAction = { guardarCita(mascotaId, motivo, fecha, hora, minuto, clinica, recordatorio, onSuccess) }
+        if (ejecutarOperacion("appt_saved") {
             citaRepository.insertar(
                 mx.edu.uttt.mascotacare.domain.model.Cita(
                     mascotaId = mascotaId, motivo = motivo.trim(), fecha = fecha,
                     hora = hora, minuto = minuto, clinica = clinica.trim(), recordatorio = recordatorio,
                 ),
             )
-        }
-        if (_uiState.value.errorMessage == null) onSuccess()
+        }) { retryAction = null; onSuccess() }
     }
 
-    fun actualizarCita(cita: Cita, onSuccess: () -> Unit = {}) = viewModelScope.launch {
-        ejecutarOperacion { citaRepository.actualizar(cita.toDomain()) }
-        if (_uiState.value.errorMessage == null) onSuccess()
+    fun actualizarCita(cita: Cita, onSuccess: () -> Unit = {}): Job = viewModelScope.launch {
+        if (cita.motivo.isBlank()) { _uiState.update { it.copy(errorMessage = "appt_reason_required") }; return@launch }
+        if (momentoCita(cita.fecha, cita.hora, cita.minuto) < System.currentTimeMillis()) { _uiState.update { it.copy(errorMessage = if (fechaEsPasada(cita.fecha)) "appt_date_past" else "appt_time_past") }; return@launch }
+        retryAction = { actualizarCita(cita, onSuccess) }
+        if (ejecutarOperacion("appt_updated") { citaRepository.actualizar(cita.toDomain()) }) { retryAction = null; onSuccess() }
     }
 
-    fun eliminarCita(cita: Cita, onSuccess: () -> Unit = {}) = viewModelScope.launch {
-        ejecutarOperacion { citaRepository.eliminar(cita.toDomain()) }
-        if (_uiState.value.errorMessage == null) onSuccess()
+    fun eliminarCita(cita: Cita, onSuccess: () -> Unit = {}): Job = viewModelScope.launch {
+        retryAction = { eliminarCita(cita, onSuccess) }
+        if (ejecutarOperacion("appt_deleted") { citaRepository.eliminar(cita.toDomain()) }) { retryAction = null; onSuccess() }
     }
 
-    private suspend fun ejecutarOperacion(operacion: suspend () -> Unit) {
-        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+    private suspend fun ejecutarOperacion(successMessage: String, operacion: suspend () -> Unit): Boolean {
+        _uiState.update { it.copy(isLoading = true, errorMessage = null, successMessage = null) }
         try {
             operacion()
+            _uiState.update { it.copy(successMessage = successMessage) }
+            return true
         } catch (error: Exception) {
             reportarError(error)
+            return false
         } finally {
             _uiState.update { it.copy(isLoading = false) }
         }
     }
 
-    private fun reportarError(error: Throwable) {
-        _uiState.update { it.copy(errorMessage = error.message ?: "No se pudo completar la operación.") }
+    private fun reportarError(error: Throwable, code: String = "database_error") {
+        _uiState.update { it.copy(errorMessage = code) }
     }
 
     private fun Cita.toDomain() = mx.edu.uttt.mascotacare.domain.model.Cita(
@@ -145,11 +162,9 @@ class CitaViewModel @Inject constructor(
         hora = hora, minuto = minuto, clinica = clinica, recordatorio = recordatorio,
     )
 
-    private fun momentoCita(cita: Cita): Long = Calendar.getInstance().apply {
-        timeInMillis = cita.fecha
-        set(Calendar.HOUR_OF_DAY, cita.hora)
-        set(Calendar.MINUTE, cita.minuto)
-        set(Calendar.SECOND, 0)
-        set(Calendar.MILLISECOND, 0)
-    }.timeInMillis
+    private fun momentoCita(cita: Cita): Long = dateTimeAtLocalTime(cita.fecha, cita.hora, cita.minuto)
+
+    private fun momentoCita(fecha: Long, hora: Int, minuto: Int): Long = dateTimeAtLocalTime(fecha, hora, minuto)
+
+    private fun fechaEsPasada(fecha: Long): Boolean = isDateBeforeToday(fecha)
 }

@@ -24,6 +24,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import android.util.Patterns
 import mx.edu.uttt.mascotacare.R
 import mx.edu.uttt.mascotacare.ui.theme.MascotaCareTheme
 
@@ -38,11 +39,21 @@ fun LoginScreen(
 ) {
     val invalidEmailMessage = stringResource(R.string.login_invalid_email)
     val shortPasswordMessage = stringResource(R.string.login_short_password)
+    val fieldsRequiredMessage = stringResource(R.string.auth_fields_required)
     var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
     var showPassword by rememberSaveable { mutableStateOf(false) }
-    var error by rememberSaveable { mutableStateOf<String?>(null) }
+    var emailError by rememberSaveable { mutableStateOf<String?>(null) }
+    var passwordError by rememberSaveable { mutableStateOf<String?>(null) }
+    var authFeedback by remember { mutableStateOf<String?>(null) }
     var creatingAccount by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(authMessage) {
+        if (authMessage != null) {
+            authFeedback = authMessage
+            onClearAuthMessage()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -66,7 +77,7 @@ fun LoginScreen(
         ) {
             Icon(
                 imageVector = Icons.Filled.Pets,
-                contentDescription = "Logotipo de MascotaCare",
+                contentDescription = stringResource(R.string.login_logo_desc),
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(dimensionResource(R.dimen.dp_60))
             )
@@ -89,11 +100,12 @@ fun LoginScreen(
 
         OutlinedTextField(
             value = email,
-            onValueChange = { email = it; error = null; onClearAuthMessage() },
+            onValueChange = { email = it; emailError = null; authFeedback = null; onClearAuthMessage() },
             label = { Text(stringResource(R.string.login_email)) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-            isError = error != null || authMessage != null,
+            isError = emailError != null,
+            supportingText = { emailError?.let { Text(it) } },
             modifier = Modifier.fillMaxWidth()
         )
 
@@ -101,7 +113,7 @@ fun LoginScreen(
 
         OutlinedTextField(
             value = password,
-            onValueChange = { password = it; error = null; onClearAuthMessage() },
+            onValueChange = { password = it; passwordError = null; authFeedback = null; onClearAuthMessage() },
             label = { Text(stringResource(R.string.login_password)) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -116,9 +128,9 @@ fun LoginScreen(
                     )
                 }
             },
-            isError = error != null || authMessage != null,
+            isError = passwordError != null || authFeedback != null,
             supportingText = {
-                (error ?: authMessage)?.let { Text(it) }
+                (passwordError ?: authFeedback)?.let { Text(it) }
             },
             modifier = Modifier.fillMaxWidth()
         )
@@ -134,12 +146,18 @@ fun LoginScreen(
 
         Button(
             onClick = {
-                error = when {
-                    !email.contains("@") -> invalidEmailMessage
+                emailError = when {
+                    email.isBlank() -> fieldsRequiredMessage
+                    !Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches() -> invalidEmailMessage
+                    else -> null
+                }
+                passwordError = when {
+                    password.isBlank() -> fieldsRequiredMessage
                     password.length < 6 -> shortPasswordMessage
                     else -> null
                 }
-                if (error == null) {
+                authFeedback = null
+                if (emailError == null && passwordError == null) {
                     if (creatingAccount) onCreateAccountClick(email, password)
                     else onLoginClick(email, password)
                 }
@@ -168,7 +186,7 @@ fun LoginScreen(
         Spacer(Modifier.height(dimensionResource(R.dimen.dp_12)))
 
         OutlinedButton(
-            onClick = { creatingAccount = !creatingAccount; error = null; onClearAuthMessage() },
+            onClick = { creatingAccount = !creatingAccount; emailError = null; passwordError = null; authFeedback = null; onClearAuthMessage() },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(dimensionResource(R.dimen.dp_52))

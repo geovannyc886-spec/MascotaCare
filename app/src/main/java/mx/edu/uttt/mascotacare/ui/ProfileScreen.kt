@@ -38,6 +38,9 @@ fun ProfileScreen(
     var showPasswordDialog by rememberSaveable { mutableStateOf(false) }
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
     var newPassword by rememberSaveable { mutableStateOf("") }
+    var passwordFieldError by rememberSaveable { mutableStateOf<String?>(null) }
+    val passwordRequired = stringResource(R.string.auth_fields_required)
+    val weakPassword = stringResource(R.string.auth_weak_password)
 
     Scaffold(
         containerColor = colors.background,
@@ -170,11 +173,27 @@ fun ProfileScreen(
             title = { Text(stringResource(R.string.profile_change_password)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.dp_8))) {
-                    OutlinedTextField(value = newPassword, onValueChange = { newPassword = it }, label = { Text(stringResource(R.string.login_password)) }, singleLine = true)
+                    OutlinedTextField(
+                        value = newPassword,
+                        onValueChange = { newPassword = it; passwordFieldError = null },
+                        label = { Text(stringResource(R.string.login_password)) },
+                        singleLine = true,
+                        isError = passwordFieldError != null,
+                        supportingText = { passwordFieldError?.let { Text(it) } }
+                    )
                     if (authError != null) Text(authError, color = colors.error, style = MaterialTheme.typography.bodySmall)
                 }
             },
-            confirmButton = { TextButton(onClick = { onChangePassword(newPassword) { showPasswordDialog = false; newPassword = "" } }) { Text(stringResource(R.string.common_accept)) } },
+            confirmButton = { TextButton(onClick = {
+                passwordFieldError = when {
+                    newPassword.isBlank() -> passwordRequired
+                    newPassword.length < 6 -> weakPassword
+                    else -> null
+                }
+                if (passwordFieldError == null && newPassword.isNotBlank() && newPassword.length >= 6) {
+                    onChangePassword(newPassword) { showPasswordDialog = false; newPassword = "" }
+                }
+            }) { Text(stringResource(R.string.common_accept)) } },
             dismissButton = { TextButton(onClick = { showPasswordDialog = false }) { Text(stringResource(R.string.common_cancel)) } }
         )
     }

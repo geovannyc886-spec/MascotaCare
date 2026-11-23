@@ -11,6 +11,9 @@ import javax.inject.Singleton
 
 @Singleton
 class LocalAuthRepository @Inject constructor(private val usuarioDao: UsuarioDao) {
+    suspend fun existeCuenta(emailInput: String): Boolean =
+        usuarioDao.obtenerPorEmail(emailInput.trim().lowercase()) != null
+
     suspend fun crearCuenta(emailInput: String, password: String): Boolean {
         val email = emailInput.trim().lowercase()
         if (usuarioDao.obtenerPorEmail(email) != null) return false

@@ -2,6 +2,7 @@ package mx.edu.uttt.mascotacare.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -24,16 +25,18 @@ data class VacunaUiState(
     val mascotaSeleccionadaId: Int? = null,
     val isLoading: Boolean = true,
     val errorMessage: String? = null,
+    val successMessage: String? = null,
 )
 
 @HiltViewModel
 class VacunaViewModel @Inject constructor(
     private val vacunaRepository: VacunaRepository,
 ) : ViewModel() {
+    private var retryAction: (() -> Unit)? = null
 
     // Observer: ambas consultas se exponen como StateFlow con suscripción controlada.
     val vacunas: StateFlow<List<Vacuna>> = vacunaRepository.obtenerTodas()
-        .catch { reportarError(it) }
+        .catch { reportarError(it, "database_load_error") }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _mascotaSeleccionadaId = MutableStateFlow<Int?>(null)
@@ -45,7 +48,7 @@ class VacunaViewModel @Inject constructor(
             if (id == null) kotlinx.coroutines.flow.flowOf(emptyList())
             else vacunaRepository.obtenerDeMascota(id)
         }
-        .catch { reportarError(it) }
+        .catch { reportarError(it, "database_load_error") }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _uiState = MutableStateFlow(VacunaUiState())
@@ -70,30 +73,41 @@ class VacunaViewModel @Inject constructor(
         _mascotaSeleccionadaId.value = id
     }
 
-    fun guardarVacuna(vacuna: Vacuna) = viewModelScope.launch {
-        ejecutarOperacion { vacunaRepository.insertar(vacuna) }
+    fun clearMessage() { _uiState.update { it.copy(errorMessage = null, successMessage = null) } }
+    fun reintentar() { retryAction?.invoke() }
+
+    fun guardarVacuna(vacuna: Vacuna): Job = viewModelScope.launch {
+        if (vacuna.nombre.isBlank() || vacuna.dosis.isBlank()) { _uiState.update { it.copy(errorMessage = "vaccine_fields_required") }; return@launch }
+        retryAction = { guardarVacuna(vacuna) }
+        if (ejecutarOperacion("vaccine_saved") { vacunaRepository.insertar(vacuna) }) retryAction = null
     }
 
-    fun actualizarVacuna(vacuna: Vacuna) = viewModelScope.launch {
-        ejecutarOperacion { vacunaRepository.actualizar(vacuna) }
+    fun actualizarVacuna(vacuna: Vacuna): Job = viewModelScope.launch {
+        if (vacuna.nombre.isBlank() || vacuna.dosis.isBlank()) { _uiState.update { it.copy(errorMessage = "vaccine_fields_required") }; return@launch }
+        retryAction = { actualizarVacuna(vacuna) }
+        if (ejecutarOperacion("vaccine_updated") { vacunaRepository.actualizar(vacuna) }) retryAction = null
     }
 
-    fun eliminarVacuna(vacuna: Vacuna) = viewModelScope.launch {
-        ejecutarOperacion { vacunaRepository.eliminar(vacuna) }
+    fun eliminarVacuna(vacuna: Vacuna): Job = viewModelScope.launch {
+        retryAction = { eliminarVacuna(vacuna) }
+        if (ejecutarOperacion("vaccine_deleted") { vacunaRepository.eliminar(vacuna) }) retryAction = null
     }
 
-    private suspend fun ejecutarOperacion(operacion: suspend () -> Unit) {
-        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+    private suspend fun ejecutarOperacion(successMessage: String, operacion: suspend () -> Unit): Boolean {
+        _uiState.update { it.copy(isLoading = true, errorMessage = null, successMessage = null) }
         try {
             operacion()
+            _uiState.update { it.copy(successMessage = successMessage) }
+            return true
         } catch (error: Exception) {
             reportarError(error)
+            return false
         } finally {
             _uiState.update { it.copy(isLoading = false) }
         }
     }
 
-    private fun reportarError(error: Throwable) {
-        _uiState.update { it.copy(errorMessage = error.message ?: "No se pudo completar la operación.") }
+    private fun reportarError(error: Throwable, code: String = "database_error") {
+        _uiState.update { it.copy(errorMessage = code) }
     }
 }

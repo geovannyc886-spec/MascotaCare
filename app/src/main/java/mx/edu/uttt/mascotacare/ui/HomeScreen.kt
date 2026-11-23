@@ -27,7 +27,7 @@ import mx.edu.uttt.mascotacare.R
 import mx.edu.uttt.mascotacare.data.database.entity.Cita
 import mx.edu.uttt.mascotacare.data.database.entity.Mascota
 import mx.edu.uttt.mascotacare.ui.theme.MascotaCareTheme
-import java.util.Calendar
+import mx.edu.uttt.mascotacare.util.dateTimeAtLocalTime
 
 private data class NavItem(@StringRes val label: Int, val icon: ImageVector)
 
@@ -334,13 +334,7 @@ private fun ReminderCitaItem(cita: Cita, pet: Mascota?, onClick: () -> Unit) {
     )
 }
 
-private fun Cita.momentoCita(): Long = Calendar.getInstance().apply {
-    timeInMillis = fecha
-    set(Calendar.HOUR_OF_DAY, hora)
-    set(Calendar.MINUTE, minuto)
-    set(Calendar.SECOND, 0)
-    set(Calendar.MILLISECOND, 0)
-}.timeInMillis
+private fun Cita.momentoCita(): Long = dateTimeAtLocalTime(fecha, hora, minuto)
 
 @Preview(showBackground = true, showSystemUi = true)
 @Composable

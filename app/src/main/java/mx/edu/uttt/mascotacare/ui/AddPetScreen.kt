@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import mx.edu.uttt.mascotacare.R
 import mx.edu.uttt.mascotacare.data.database.entity.Mascota
 import mx.edu.uttt.mascotacare.ui.theme.MascotaCareTheme
+import mx.edu.uttt.mascotacare.util.isDateAfterToday
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,6 +37,7 @@ fun AddPetScreen(
     mascota: Mascota? = null,
     errorMessage: String? = null,
     isLoading: Boolean = false,
+    onClearMessage: () -> Unit = {},
 ) {
     val colors = MaterialTheme.colorScheme
 
@@ -48,6 +50,8 @@ fun AddPetScreen(
     var nameError by rememberSaveable { mutableStateOf(false) }
     var nameTooLong by rememberSaveable { mutableStateOf(false) }
     var speciesError by rememberSaveable { mutableStateOf(false) }
+    var weightError by rememberSaveable { mutableStateOf(false) }
+    var birthError by rememberSaveable { mutableStateOf(false) }
 
     val speciesOptions = listOf(
         stringResource(R.string.species_dog),
@@ -124,6 +128,7 @@ fun AddPetScreen(
                         nameTooLong = true
                     }
                     nameError = false
+                    onClearMessage()
                 },
                 label = { Text(stringResource(R.string.add_pet_name)) },
                 singleLine = true,
@@ -141,7 +146,7 @@ fun AddPetScreen(
                 label = stringResource(R.string.add_pet_species),
                 value = species,
                 options = speciesOptions,
-                onSelected = { species = it; speciesError = false }
+                onSelected = { species = it; speciesError = false; onClearMessage() }
             )
             if (speciesError) {
                 Text(
@@ -153,16 +158,19 @@ fun AddPetScreen(
             }
             errorMessage?.let { message ->
                 val text = when (message) {
-                    "add_pet_name_required" -> stringResource(R.string.add_pet_name_error)
-                    "add_pet_name_max_error" -> stringResource(R.string.add_pet_name_max_error)
-                    else -> message
+                    "pet_name_required" -> stringResource(R.string.pet_name_required_message)
+                    "pet_name_too_long" -> stringResource(R.string.pet_name_too_long_message)
+                    "pet_weight_invalid" -> stringResource(R.string.pet_weight_invalid)
+                    "pet_birth_future" -> stringResource(R.string.pet_birth_future)
+                    "pet_duplicate" -> stringResource(R.string.pet_duplicate)
+                    else -> null
                 }
-                Text(text, color = colors.error, style = MaterialTheme.typography.bodySmall)
+                text?.let { Text(it, color = colors.error, style = MaterialTheme.typography.bodySmall) }
             }
 
             OutlinedTextField(
                 value = breed,
-                onValueChange = { breed = it },
+                onValueChange = { breed = it; onClearMessage() },
                 label = { Text(stringResource(R.string.add_pet_breed)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
@@ -172,15 +180,18 @@ fun AddPetScreen(
                 label = stringResource(R.string.add_pet_birth),
                 value = birthMillis?.let { formatDate(it) } ?: "",
                 trailingIcon = Icons.Filled.CalendarMonth,
-                onClick = { showDatePicker = true }
+                onClick = { showDatePicker = true; onClearMessage() }
             )
+            if (birthError) Text(stringResource(R.string.pet_birth_future), color = colors.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.align(Alignment.Start))
 
             OutlinedTextField(
                 value = weight,
-                onValueChange = { weight = it },
+                onValueChange = { weight = it; weightError = false; onClearMessage() },
                 label = { Text(stringResource(R.string.add_pet_weight)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                isError = weightError,
+                supportingText = { if (weightError) Text(stringResource(R.string.pet_weight_invalid)) },
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -200,7 +211,9 @@ fun AddPetScreen(
                             speciesError = true
                         } else {
                             val pesoDouble = weight.replace(',', '.').toDoubleOrNull()
-                            onSave(name.trim(), species, breed.trim(), birthMillis, pesoDouble)
+                            weightError = pesoDouble == null || !pesoDouble.isFinite() || pesoDouble <= 0.0
+                            birthError = birthMillis?.let(::isDateAfterToday) == true
+                            if (!weightError && !birthError) onSave(name.trim(), species, breed.trim(), birthMillis, pesoDouble)
                         }
                     },
                     modifier = Modifier
@@ -225,7 +238,7 @@ fun AddPetScreen(
         AppDatePickerDialog(
             initialMillis = birthMillis,
             onDismiss = { showDatePicker = false },
-            onConfirm = { birthMillis = it; showDatePicker = false }
+            onConfirm = { birthMillis = it; birthError = it?.let(::isDateAfterToday) == true; showDatePicker = false }
         )
     }
 }

@@ -1,9 +1,11 @@
 package mx.edu.uttt.mascotacare.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
+import kotlinx.coroutines.Job
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import mx.edu.uttt.mascotacare.util.isDateAfterToday
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -25,17 +27,19 @@ data class MascotaUiState(
     val searchQuery: String = "",
     val isLoading: Boolean = true,
     val errorMessage: String? = null,
+    val successMessage: String? = null,
 )
 
 @HiltViewModel
 class MascotaViewModel @Inject constructor(
     private val mascotaRepository: MascotaRepository,
 ) : ViewModel() {
+    private var retryAction: (() -> Unit)? = null
 
     // Observer: stateIn comparte las consultas mientras haya observadores activos.
     val mascotas: StateFlow<List<Mascota>> = mascotaRepository.obtenerTodas()
         .map { lista -> lista.map { it.toEntity() } }
-        .catch { error -> reportarError(error) }
+        .catch { error -> reportarError(error, "database_load_error") }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _searchQuery = MutableStateFlow("")
@@ -48,7 +52,7 @@ class MascotaViewModel @Inject constructor(
             else mascotaRepository.buscarPorNombre(query.trim())
         }
         .map { lista -> lista.map { it.toEntity() } }
-        .catch { error -> reportarError(error) }
+        .catch { error -> reportarError(error, "database_load_error") }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _uiState = MutableStateFlow(MascotaUiState())
@@ -73,6 +77,9 @@ class MascotaViewModel @Inject constructor(
         _searchQuery.value = query
     }
 
+    fun clearMessage() { _uiState.update { it.copy(errorMessage = null, successMessage = null) } }
+    fun reintentar() { retryAction?.invoke() }
+
     fun guardarMascota(
         nombre: String,
         especie: String,
@@ -80,43 +87,65 @@ class MascotaViewModel @Inject constructor(
         fechaNacimiento: Long?,
         pesoKg: Double?,
         onSuccess: () -> Unit = {},
-    ) = viewModelScope.launch {
-        if (nombre.isBlank()) {
-            _uiState.update { it.copy(errorMessage = "add_pet_name_required") }
+    ): Job = viewModelScope.launch {
+        val nombreLimpio = nombre.trim()
+        if (nombreLimpio.isBlank()) {
+            _uiState.update { it.copy(errorMessage = "pet_name_required") }
             return@launch
         }
-        if (nombre.trim().length > 20) {
-            _uiState.update { it.copy(errorMessage = "add_pet_name_max_error") }
+        if (nombreLimpio.length > 20) {
+            _uiState.update { it.copy(errorMessage = "pet_name_too_long") }
             return@launch
         }
-        if (ejecutarOperacion {
+        if (fechaNacimiento?.let(::isDateAfterToday) == true) {
+            _uiState.update { it.copy(errorMessage = "pet_birth_future") }
+            return@launch
+        }
+        if (pesoKg == null || !pesoKg.isFinite() || pesoKg <= 0.0) {
+            _uiState.update { it.copy(errorMessage = "pet_weight_invalid") }
+            return@launch
+        }
+        if (_uiState.value.mascotas.any { it.nombre.equals(nombreLimpio, true) && it.especie.equals(especie, true) }) {
+            _uiState.update { it.copy(errorMessage = "pet_duplicate") }
+            return@launch
+        }
+        val op: suspend () -> Unit = {
             mascotaRepository.insertar(
                 mx.edu.uttt.mascotacare.domain.model.Mascota(
-                    nombre = nombre.trim(), especie = especie.ifBlank { "Otro" },
+                    nombre = nombreLimpio, especie = especie,
                     raza = raza.trim(), fechaNacimiento = fechaNacimiento, pesoKg = pesoKg,
                 ),
             )
-        }) onSuccess()
+            Unit
+        }
+        retryAction = { guardarMascota(nombre, especie, raza, fechaNacimiento, pesoKg, onSuccess) }
+        if (ejecutarOperacion(op, "pet_saved")) { retryAction = null; onSuccess() }
     }
 
-    fun actualizarMascota(mascota: Mascota, onSuccess: () -> Unit = {}) = viewModelScope.launch {
-        if (mascota.nombre.isBlank() || mascota.nombre.length > 20) {
-            _uiState.update { it.copy(errorMessage = if (mascota.nombre.isBlank()) "add_pet_name_required" else "add_pet_name_max_error") }
+    fun actualizarMascota(mascota: Mascota, onSuccess: () -> Unit = {}): Job = viewModelScope.launch {
+        if (mascota.nombre.isBlank() || mascota.nombre.trim().length > 20) {
+            _uiState.update { it.copy(errorMessage = if (mascota.nombre.isBlank()) "pet_name_required" else "pet_name_too_long") }
             return@launch
         }
-        if (ejecutarOperacion {
-            mascotaRepository.actualizar(mascota.toDomain())
-        }) onSuccess()
+        if (mascota.fechaNacimiento?.let(::isDateAfterToday) == true) { _uiState.update { it.copy(errorMessage = "pet_birth_future") }; return@launch }
+        if (mascota.pesoKg == null || !mascota.pesoKg.isFinite() || mascota.pesoKg <= 0.0) { _uiState.update { it.copy(errorMessage = "pet_weight_invalid") }; return@launch }
+        if (_uiState.value.mascotas.any { it.id != mascota.id && it.nombre.equals(mascota.nombre.trim(), true) && it.especie.equals(mascota.especie, true) }) {
+            _uiState.update { it.copy(errorMessage = "pet_duplicate") }; return@launch
+        }
+        retryAction = { actualizarMascota(mascota, onSuccess) }
+        if (ejecutarOperacion({ mascotaRepository.actualizar(mascota.toDomain()) }, "pet_updated")) { retryAction = null; onSuccess() }
     }
 
-    fun eliminarMascota(mascota: Mascota, onSuccess: () -> Unit = {}) = viewModelScope.launch {
-        if (ejecutarOperacion { mascotaRepository.eliminar(mascota.toDomain()) }) onSuccess()
+    fun eliminarMascota(mascota: Mascota, onSuccess: () -> Unit = {}): Job = viewModelScope.launch {
+        retryAction = { eliminarMascota(mascota, onSuccess) }
+        if (ejecutarOperacion({ mascotaRepository.eliminar(mascota.toDomain()) }, "pet_deleted")) { retryAction = null; onSuccess() }
     }
 
-    private suspend fun ejecutarOperacion(operacion: suspend () -> Unit): Boolean {
-        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+    private suspend fun ejecutarOperacion(operacion: suspend () -> Unit, success: String): Boolean {
+        _uiState.update { it.copy(isLoading = true, errorMessage = null, successMessage = null) }
         return try {
             operacion()
+            _uiState.update { it.copy(successMessage = success) }
             true
         } catch (error: Exception) {
             reportarError(error)
@@ -126,8 +155,8 @@ class MascotaViewModel @Inject constructor(
         }
     }
 
-    private fun reportarError(error: Throwable) {
-        _uiState.update { it.copy(errorMessage = error.message ?: "No se pudo completar la operación.") }
+    private fun reportarError(error: Throwable, code: String = "database_error") {
+        _uiState.update { it.copy(errorMessage = code) }
     }
 
     private fun Mascota.toDomain() = mx.edu.uttt.mascotacare.domain.model.Mascota(
