@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
+/** Implementa el contrato de domain y traduce entre Room y los modelos del dominio. */
 class CitaRepositoryImpl @Inject constructor(private val citaDao: CitaDao) : CitaRepository {
     override fun obtenerTodas(): Flow<List<Cita>> =
         citaDao.obtenerTodas().map { lista -> lista.map { it.toDomain() } }

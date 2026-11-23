@@ -19,8 +19,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import mx.edu.uttt.mascotacare.data.database.entity.Cita
-import mx.edu.uttt.mascotacare.data.mapper.toEntity
+import mx.edu.uttt.mascotacare.domain.model.Cita
 import mx.edu.uttt.mascotacare.domain.repository.CitaRepository
 
 data class CitaUiState(
@@ -34,6 +33,7 @@ data class CitaUiState(
 )
 
 @HiltViewModel
+// Hilt inyecta el contrato CitaRepository del dominio.
 class CitaViewModel @Inject constructor(
     private val citaRepository: CitaRepository,
 ) : ViewModel() {
@@ -41,7 +41,6 @@ class CitaViewModel @Inject constructor(
 
     // Observer: las consultas Room se comparten con stateIn y WhileSubscribed.
     val todasLasCitas: StateFlow<List<Cita>> = citaRepository.obtenerTodas()
-        .map { lista -> lista.map { it.toEntity() } }
         .catch { error -> reportarError(error, "database_load_error") }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -54,7 +53,7 @@ class CitaViewModel @Inject constructor(
     }.timeInMillis
 
     val proximasCitas: StateFlow<List<Cita>> = citaRepository.obtenerProximas(inicioRangoProximas)
-        .map { citas -> citas.map { it.toEntity() }.filter { momentoCita(it) >= System.currentTimeMillis() } }
+        .map { citas -> citas.filter { momentoCita(it) >= System.currentTimeMillis() } }
         .catch { error -> reportarError(error, "database_load_error") }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -66,7 +65,6 @@ class CitaViewModel @Inject constructor(
         .flatMapLatest { id ->
             if (id == null) citaRepository.obtenerTodas() else citaRepository.obtenerDeMascota(id)
         }
-        .map { lista -> lista.map { it.toEntity() } }
         .catch { error -> reportarError(error, "database_load_error") }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -131,12 +129,12 @@ class CitaViewModel @Inject constructor(
         if (cita.motivo.isBlank()) { _uiState.update { it.copy(errorMessage = "appt_reason_required") }; return@launch }
         if (momentoCita(cita.fecha, cita.hora, cita.minuto) < System.currentTimeMillis()) { _uiState.update { it.copy(errorMessage = if (fechaEsPasada(cita.fecha)) "appt_date_past" else "appt_time_past") }; return@launch }
         retryAction = { actualizarCita(cita, onSuccess) }
-        if (ejecutarOperacion("appt_updated") { citaRepository.actualizar(cita.toDomain()) }) { retryAction = null; onSuccess() }
+        if (ejecutarOperacion("appt_updated") { citaRepository.actualizar(cita) }) { retryAction = null; onSuccess() }
     }
 
     fun eliminarCita(cita: Cita, onSuccess: () -> Unit = {}): Job = viewModelScope.launch {
         retryAction = { eliminarCita(cita, onSuccess) }
-        if (ejecutarOperacion("appt_deleted") { citaRepository.eliminar(cita.toDomain()) }) { retryAction = null; onSuccess() }
+        if (ejecutarOperacion("appt_deleted") { citaRepository.eliminar(cita) }) { retryAction = null; onSuccess() }
     }
 
     private suspend fun ejecutarOperacion(successMessage: String, operacion: suspend () -> Unit): Boolean {
@@ -156,11 +154,6 @@ class CitaViewModel @Inject constructor(
     private fun reportarError(error: Throwable, code: String = "database_error") {
         _uiState.update { it.copy(errorMessage = code) }
     }
-
-    private fun Cita.toDomain() = mx.edu.uttt.mascotacare.domain.model.Cita(
-        id = id, mascotaId = mascotaId, motivo = motivo, fecha = fecha,
-        hora = hora, minuto = minuto, clinica = clinica, recordatorio = recordatorio,
-    )
 
     private fun momentoCita(cita: Cita): Long = dateTimeAtLocalTime(cita.fecha, cita.hora, cita.minuto)
 

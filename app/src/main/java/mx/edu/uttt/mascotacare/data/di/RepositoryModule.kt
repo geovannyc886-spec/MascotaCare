@@ -7,6 +7,8 @@ import dagger.hilt.components.SingletonComponent
 import mx.edu.uttt.mascotacare.data.repository.CitaRepositoryImpl
 import mx.edu.uttt.mascotacare.data.repository.MascotaRepositoryImpl
 import mx.edu.uttt.mascotacare.data.repository.VacunaRepositoryImpl
+import mx.edu.uttt.mascotacare.data.repository.LocalAuthRepository
+import mx.edu.uttt.mascotacare.domain.repository.AuthRepository
 import mx.edu.uttt.mascotacare.domain.repository.CitaRepository
 import mx.edu.uttt.mascotacare.domain.repository.MascotaRepository
 import mx.edu.uttt.mascotacare.domain.repository.VacunaRepository
@@ -14,7 +16,12 @@ import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
+// Hilt enlaza contratos de domain con implementaciones singleton de data.
 abstract class RepositoryModule {
+    @Binds
+    @Singleton
+    abstract fun bindAuthRepository(impl: LocalAuthRepository): AuthRepository
+
     @Binds @Singleton abstract fun bindMascotaRepository(impl: MascotaRepositoryImpl): MascotaRepository
     @Binds @Singleton abstract fun bindCitaRepository(impl: CitaRepositoryImpl): CitaRepository
     @Binds @Singleton abstract fun bindVacunaRepository(impl: VacunaRepositoryImpl): VacunaRepository

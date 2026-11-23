@@ -16,6 +16,7 @@ import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
+// AppDatabase es una instancia única por proceso; los DAOs comparten esa instancia.
 object DatabaseModule {
     @Provides
     @Singleton

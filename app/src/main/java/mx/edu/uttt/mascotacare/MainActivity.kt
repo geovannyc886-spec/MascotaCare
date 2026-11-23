@@ -9,6 +9,7 @@ import mx.edu.uttt.mascotacare.ui.AppNavigation
 import mx.edu.uttt.mascotacare.ui.theme.MascotaCareTheme
 
 @AndroidEntryPoint
+// Esta Activity habilita la inyección de dependencias administrada por Hilt.
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

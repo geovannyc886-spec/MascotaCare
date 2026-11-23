@@ -29,6 +29,7 @@ data class VacunaUiState(
 )
 
 @HiltViewModel
+// Hilt inyecta el contrato VacunaRepository del dominio.
 class VacunaViewModel @Inject constructor(
     private val vacunaRepository: VacunaRepository,
 ) : ViewModel() {

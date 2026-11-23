@@ -24,8 +24,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import mx.edu.uttt.mascotacare.R
-import mx.edu.uttt.mascotacare.data.database.entity.Cita
-import mx.edu.uttt.mascotacare.data.database.entity.Mascota
+import mx.edu.uttt.mascotacare.domain.model.Cita
+import mx.edu.uttt.mascotacare.domain.model.Mascota
 import mx.edu.uttt.mascotacare.ui.theme.MascotaCareTheme
 import mx.edu.uttt.mascotacare.util.dateTimeAtLocalTime
 

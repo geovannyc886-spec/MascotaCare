@@ -40,7 +40,7 @@ import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import mx.edu.uttt.mascotacare.R
-import mx.edu.uttt.mascotacare.data.database.entity.Mascota
+import mx.edu.uttt.mascotacare.domain.model.Mascota
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

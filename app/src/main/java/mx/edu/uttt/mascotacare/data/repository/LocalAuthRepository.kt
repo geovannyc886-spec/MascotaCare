@@ -3,6 +3,7 @@ package mx.edu.uttt.mascotacare.data.repository
 import android.util.Base64
 import mx.edu.uttt.mascotacare.data.database.dao.UsuarioDao
 import mx.edu.uttt.mascotacare.data.database.entity.Usuario
+import mx.edu.uttt.mascotacare.domain.repository.AuthRepository
 import java.security.SecureRandom
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
@@ -10,11 +11,12 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class LocalAuthRepository @Inject constructor(private val usuarioDao: UsuarioDao) {
-    suspend fun existeCuenta(emailInput: String): Boolean =
+/** Implementación local del contrato de autenticación usando el DAO de usuarios. */
+class LocalAuthRepository @Inject constructor(private val usuarioDao: UsuarioDao) : AuthRepository {
+    override suspend fun existeCuenta(emailInput: String): Boolean =
         usuarioDao.obtenerPorEmail(emailInput.trim().lowercase()) != null
 
-    suspend fun crearCuenta(emailInput: String, password: String): Boolean {
+    override suspend fun crearCuenta(emailInput: String, password: String): Boolean {
         val email = emailInput.trim().lowercase()
         if (usuarioDao.obtenerPorEmail(email) != null) return false
 
@@ -29,13 +31,13 @@ class LocalAuthRepository @Inject constructor(private val usuarioDao: UsuarioDao
         return true
     }
 
-    suspend fun iniciarSesion(emailInput: String, password: String): Boolean {
+    override suspend fun iniciarSesion(emailInput: String, password: String): Boolean {
         val usuario = usuarioDao.obtenerPorEmail(emailInput.trim().lowercase()) ?: return false
         val salt = Base64.decode(usuario.salt, Base64.NO_WRAP)
         return hash(password, salt) == usuario.passwordHash
     }
 
-    suspend fun cambiarPassword(emailInput: String, nuevaPassword: String): Boolean {
+    override suspend fun cambiarPassword(emailInput: String, nuevaPassword: String): Boolean {
         val email = emailInput.trim().lowercase()
         val usuario = usuarioDao.obtenerPorEmail(email) ?: return false
         val nuevaSal = ByteArray(SALT_BYTES).also(SecureRandom()::nextBytes)
@@ -48,7 +50,7 @@ class LocalAuthRepository @Inject constructor(private val usuarioDao: UsuarioDao
         return true
     }
 
-    suspend fun eliminarCuenta(emailInput: String): Boolean {
+    override suspend fun eliminarCuenta(emailInput: String): Boolean {
         val usuario = usuarioDao.obtenerPorEmail(emailInput.trim().lowercase()) ?: return false
         usuarioDao.eliminar(usuario)
         return true

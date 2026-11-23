@@ -17,8 +17,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import mx.edu.uttt.mascotacare.data.database.entity.Mascota
-import mx.edu.uttt.mascotacare.data.mapper.toEntity
+import mx.edu.uttt.mascotacare.domain.model.Mascota
 import mx.edu.uttt.mascotacare.domain.repository.MascotaRepository
 
 data class MascotaUiState(
@@ -31,6 +30,7 @@ data class MascotaUiState(
 )
 
 @HiltViewModel
+// Hilt inyecta el contrato MascotaRepository del dominio.
 class MascotaViewModel @Inject constructor(
     private val mascotaRepository: MascotaRepository,
 ) : ViewModel() {
@@ -38,7 +38,6 @@ class MascotaViewModel @Inject constructor(
 
     // Observer: stateIn comparte las consultas mientras haya observadores activos.
     val mascotas: StateFlow<List<Mascota>> = mascotaRepository.obtenerTodas()
-        .map { lista -> lista.map { it.toEntity() } }
         .catch { error -> reportarError(error, "database_load_error") }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -51,7 +50,6 @@ class MascotaViewModel @Inject constructor(
             if (query.isBlank()) mascotaRepository.obtenerTodas()
             else mascotaRepository.buscarPorNombre(query.trim())
         }
-        .map { lista -> lista.map { it.toEntity() } }
         .catch { error -> reportarError(error, "database_load_error") }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -133,12 +131,12 @@ class MascotaViewModel @Inject constructor(
             _uiState.update { it.copy(errorMessage = "pet_duplicate") }; return@launch
         }
         retryAction = { actualizarMascota(mascota, onSuccess) }
-        if (ejecutarOperacion({ mascotaRepository.actualizar(mascota.toDomain()) }, "pet_updated")) { retryAction = null; onSuccess() }
+        if (ejecutarOperacion({ mascotaRepository.actualizar(mascota) }, "pet_updated")) { retryAction = null; onSuccess() }
     }
 
     fun eliminarMascota(mascota: Mascota, onSuccess: () -> Unit = {}): Job = viewModelScope.launch {
         retryAction = { eliminarMascota(mascota, onSuccess) }
-        if (ejecutarOperacion({ mascotaRepository.eliminar(mascota.toDomain()) }, "pet_deleted")) { retryAction = null; onSuccess() }
+        if (ejecutarOperacion({ mascotaRepository.eliminar(mascota) }, "pet_deleted")) { retryAction = null; onSuccess() }
     }
 
     private suspend fun ejecutarOperacion(operacion: suspend () -> Unit, success: String): Boolean {
@@ -159,8 +157,4 @@ class MascotaViewModel @Inject constructor(
         _uiState.update { it.copy(errorMessage = code) }
     }
 
-    private fun Mascota.toDomain() = mx.edu.uttt.mascotacare.domain.model.Mascota(
-        id = id, nombre = nombre, especie = especie, raza = raza,
-        fechaNacimiento = fechaNacimiento, pesoKg = pesoKg, fotoUri = fotoUri,
-    )
 }

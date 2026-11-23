@@ -51,6 +51,7 @@ fun AppNavigation(
     citaViewModel: CitaViewModel = hiltViewModel(),
     vacunaViewModel: VacunaViewModel = hiltViewModel()
 ) {
+    // Observer: Compose recoge los UiState y delega las acciones en ViewModels, sin acceder a data.
     val navController = rememberNavController()
     val snackbarHostState = remember { SnackbarHostState() }
     val authState by authViewModel.uiState.collectAsStateWithLifecycle()

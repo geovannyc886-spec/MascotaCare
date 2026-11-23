@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import mx.edu.uttt.mascotacare.data.repository.LocalAuthRepository
+import mx.edu.uttt.mascotacare.domain.repository.AuthRepository
 
 data class AuthUiState(
     val userEmail: String? = null,
@@ -21,8 +21,9 @@ data class AuthUiState(
 )
 
 @HiltViewModel
+// Hilt resuelve AuthRepository desde su contrato en domain.
 class AuthViewModel @Inject constructor(
-    private val authRepository: LocalAuthRepository,
+    private val authRepository: AuthRepository,
 ) : ViewModel() {
     private var retryAction: (() -> Unit)? = null
     private val _uiState = MutableStateFlow(AuthUiState())

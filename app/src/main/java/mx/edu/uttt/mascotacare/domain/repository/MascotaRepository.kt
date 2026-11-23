@@ -3,6 +3,7 @@ package mx.edu.uttt.mascotacare.domain.repository
 import mx.edu.uttt.mascotacare.domain.model.Mascota
 import kotlinx.coroutines.flow.Flow
 
+/** Contrato del dominio; aísla casos de uso y ViewModels de Room. */
 interface MascotaRepository {
     fun obtenerTodas(): Flow<List<Mascota>>
     fun buscarPorNombre(texto: String): Flow<List<Mascota>>
