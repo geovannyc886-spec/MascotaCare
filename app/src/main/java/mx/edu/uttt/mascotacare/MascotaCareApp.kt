@@ -6,3 +6,4 @@ import dagger.hilt.android.HiltAndroidApp
 @HiltAndroidApp
 // Hilt inicializa aquí el contenedor de dependencias de toda la aplicación.
 class MascotaCareApp : Application()
+git add .
